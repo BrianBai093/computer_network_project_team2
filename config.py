@@ -23,3 +23,4 @@ TX_REGISTER  = "REGISTER"   # Device registration
 TX_CAPTURE   = "CAPTURE"    # Photo capture record
 TX_ENDORSE   = "ENDORSE"    # Endorsement
 TX_REVOKE    = "REVOKE"     # Revocation
+TX_COINBASE  = "COINBASE"   # Mining reward (reserved; implement in Member A's layer)

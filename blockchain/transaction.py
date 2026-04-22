@@ -3,7 +3,7 @@ transaction.py — Transaction data class + 4 transaction types
 
 Transaction types (see config.TX_*):
   REGISTER  Device registration  payload: {device_id, public_key, metadata}
-  CAPTURE   Photo capture record payload: {device_id, image_hash, phash, timestamp, location}
+  CAPTURE   Photo capture record payload: {device_id, image_hash, phash, location}
   ENDORSE   Endorsement          payload: {target_tx_id, endorser_device_id}
   REVOKE    Revocation           payload: {target_device_id, reason}
 """
@@ -11,8 +11,7 @@ Transaction types (see config.TX_*):
 import hashlib
 import json
 import time
-from dataclasses import dataclass, field, asdict
-from typing import Any
+from dataclasses import dataclass, field
 
 from config import TX_REGISTER, TX_CAPTURE, TX_ENDORSE, TX_REVOKE
 
@@ -105,7 +104,6 @@ class Transaction:
                 "device_id":  device_id,
                 "image_hash": image_hash,
                 "phash":      phash,
-                "timestamp":  time.time(),
                 "location":   location,
             },
         )

@@ -75,7 +75,7 @@ def receive_transaction():
     if ttl > 0:
         from network.peer_client import broadcast_transaction
         broadcast_transaction(
-            tx, state["known_peers"],
+            tx, list(state["known_peers"]),
             ttl=ttl - 1, msg_id=msg_id,
             exclude_self=state.get("self_url", ""),
         )
@@ -109,12 +109,16 @@ def receive_block():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
-    if appended and ttl > 0:
-        from network.peer_client import broadcast_block
-        broadcast_block(
-            blk, state["known_peers"],
-            ttl=ttl - 1, msg_id=msg_id,
-            exclude_self=state.get("self_url", ""),
-        )
+    if appended:
+        # Remove the block's transactions from the local mempool
+        state["mempool"].remove([tx.tx_id for tx in blk.transactions])
+
+        if ttl > 0:
+            from network.peer_client import broadcast_block
+            broadcast_block(
+                blk, list(state["known_peers"]),
+                ttl=ttl - 1, msg_id=msg_id,
+                exclude_self=state.get("self_url", ""),
+            )
 
     return jsonify({"status": "ok", "appended": appended}), 200
