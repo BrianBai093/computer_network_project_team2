@@ -12,7 +12,8 @@ Responsibilities:
 import threading
 import time
 
-from config import DIFFICULTY_BITS, GENESIS_HASH
+from config import DIFFICULTY_BITS, GENESIS_HASH, TX_COINBASE, TX_REGISTER, TX_REVOKE
+from application.crypto_utils import verify
 from blockchain.block import Block
 from blockchain.transaction import Transaction
 
@@ -96,6 +97,29 @@ class Chain:
         if block.merkle_root != expected_mr:
             return False
 
+        # 6. Validate coinbase structure (non-genesis blocks)
+        if block.index > 0:
+            if not block.transactions or block.transactions[0].tx_type != TX_COINBASE:
+                return False
+            for tx in block.transactions[1:]:
+                if tx.tx_type == TX_COINBASE:
+                    return False
+
+        # 7. Verify transaction signatures
+        for tx in block.transactions:
+            if tx.tx_type == TX_COINBASE:
+                continue
+            if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
+                return False
+
+        # 8. Validate REVOKE authorization
+        for tx in block.transactions:
+            if tx.tx_type == TX_REVOKE:
+                target_device_id = tx.payload.get("target_device_id", "")
+                register_tx = self._find_register_for_device(target_device_id)
+                if register_tx is None or tx.sender != register_tx.sender:
+                    return False
+
         return True
 
     def is_valid_chain(self, chain: list[Block], difficulty: int = DIFFICULTY_BITS) -> bool:
@@ -108,6 +132,9 @@ class Chain:
         if genesis.index != 0 or genesis.previous_hash != GENESIS_HASH:
             return False
 
+        # Build register map for REVOKE validation during chain scan
+        register_map: dict[str, Transaction] = {}
+
         for i in range(1, len(chain)):
             prev, curr = chain[i - 1], chain[i]
             if curr.index != prev.index + 1:
@@ -119,7 +146,41 @@ class Chain:
             if not _meets_difficulty(curr.hash, difficulty):
                 return False
 
+            # Coinbase structure
+            if not curr.transactions or curr.transactions[0].tx_type != TX_COINBASE:
+                return False
+            for tx in curr.transactions[1:]:
+                if tx.tx_type == TX_COINBASE:
+                    return False
+
+            # Signature verification
+            for tx in curr.transactions:
+                if tx.tx_type == TX_COINBASE:
+                    continue
+                if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
+                    return False
+
+            # REVOKE authorization
+            for tx in curr.transactions:
+                if tx.tx_type == TX_REGISTER:
+                    device_id = tx.payload.get("device_id", "")
+                    if device_id:
+                        register_map[device_id] = tx
+                if tx.tx_type == TX_REVOKE:
+                    target_device_id = tx.payload.get("target_device_id", "")
+                    reg_tx = register_map.get(target_device_id)
+                    if reg_tx is None or tx.sender != reg_tx.sender:
+                        return False
+
         return True
+
+    def _find_register_for_device(self, device_id: str) -> Transaction | None:
+        """Find the REGISTER transaction for a given device_id on chain."""
+        for blk in self._chain:
+            for tx in blk.transactions:
+                if tx.tx_type == TX_REGISTER and tx.payload.get("device_id") == device_id:
+                    return tx
+        return None
 
     # ── Append / replace ──────────────────────────────────────────────────────
 

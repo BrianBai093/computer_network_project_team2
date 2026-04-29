@@ -24,3 +24,4 @@ TX_CAPTURE   = "CAPTURE"    # Photo capture record
 TX_ENDORSE   = "ENDORSE"    # Endorsement
 TX_REVOKE    = "REVOKE"     # Revocation
 TX_COINBASE  = "COINBASE"   # Mining reward (reserved; implement in Member A's layer)
+MINING_REWARD = 1           # Coinbase reward per block (symbolic)

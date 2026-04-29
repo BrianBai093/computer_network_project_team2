@@ -12,7 +12,7 @@ Main functions:
 import threading
 import time
 
-from config import DIFFICULTY_BITS, BLOCK_INTERVAL
+from config import DIFFICULTY_BITS, BLOCK_INTERVAL, MINING_REWARD
 from blockchain.block import Block
 from blockchain.transaction import Transaction
 
@@ -42,6 +42,9 @@ def mine_block(
     Returns:
         New Block when a valid nonce is found; None if interrupted
     """
+    coinbase_tx = Transaction.make_coinbase(miner_pubkey, MINING_REWARD)
+    transactions = [coinbase_tx] + list(transactions)
+
     nonce     = 0
     timestamp = time.time()
 

@@ -10,7 +10,8 @@ from blockchain.merkle import merkle_root
 from blockchain.block import Block
 from blockchain.chain import Chain
 from blockchain.mempool import Mempool
-from config import TX_REGISTER, TX_CAPTURE, TX_ENDORSE, TX_REVOKE
+from blockchain.mining import mine_block
+from config import TX_REGISTER, TX_CAPTURE, TX_ENDORSE, TX_REVOKE, DIFFICULTY_BITS
 
 
 # ── Transaction ────────────────────────────────────────────
@@ -92,16 +93,34 @@ class TestChain:
         assert chain.last_block.index == 0
 
     def test_append_valid_block(self):
-        # TODO: mine a valid block and append it
-        pass
+        chain = Chain()
+        block = mine_block(chain.last_block, [], "miner_pub", DIFFICULTY_BITS)
+        assert block is not None
+        result = chain.append_block(block, DIFFICULTY_BITS)
+        assert result is True
+        assert chain.height == 2
 
     def test_reject_invalid_block(self):
-        # TODO: verify that a block with wrong previous_hash is rejected
-        pass
+        chain = Chain()
+        block = mine_block(chain.last_block, [], "miner_pub", DIFFICULTY_BITS)
+        assert block is not None
+        block.previous_hash = "f" * 64
+        block.hash = block.compute_hash()
+        result = chain.append_block(block, DIFFICULTY_BITS)
+        assert result is False
+        assert chain.height == 1
 
     def test_replace_with_longer_chain(self):
-        # TODO: build two chains and verify the longer one wins
-        pass
+        chain_a = Chain()
+        chain_b = Chain()
+        for _ in range(2):
+            block = mine_block(chain_b.last_block, [], "miner_b", DIFFICULTY_BITS)
+            assert block is not None
+            assert chain_b.append_block(block, DIFFICULTY_BITS)
+        assert chain_b.height == 3
+        result = chain_a.replace_chain(chain_b.get_all_blocks(), DIFFICULTY_BITS)
+        assert result is True
+        assert chain_a.height == 3
 
     def test_serialization_roundtrip(self):
         chain = Chain()

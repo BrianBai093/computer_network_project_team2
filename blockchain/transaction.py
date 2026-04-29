@@ -13,7 +13,7 @@ import json
 import time
 from dataclasses import dataclass, field
 
-from config import TX_REGISTER, TX_CAPTURE, TX_ENDORSE, TX_REVOKE
+from config import TX_REGISTER, TX_CAPTURE, TX_ENDORSE, TX_REVOKE, TX_COINBASE
 
 
 @dataclass
@@ -132,4 +132,21 @@ class Transaction:
                 "target_device_id": target_device_id,
                 "reason":           reason,
             },
+        )
+
+    @staticmethod
+    def make_coinbase(miner_pubkey: str, reward: int | float = 1) -> "Transaction":
+        """Create a COINBASE (mining reward) transaction.
+
+        Args:
+            miner_pubkey: The public key of the miner receiving the reward.
+            reward: The mining reward amount.
+
+        Returns:
+            An unsigned COINBASE Transaction.
+        """
+        return Transaction(
+            tx_type=TX_COINBASE,
+            sender=miner_pubkey,
+            payload={"miner": miner_pubkey, "reward": reward},
         )
