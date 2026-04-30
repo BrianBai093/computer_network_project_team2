@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Endorse{% endblock %}
+
+{% block content %}
+<h1>Endorse a Photo</h1>
+<p>Enter the TX ID of an on-chain CAPTURE transaction to endorse its authenticity.</p>
+
+<form method="POST">
+  <div class="form-group">
+    <label>Target CAPTURE Transaction ID</label>
+    <input type="text" name="target_tx_id" required
+           placeholder="64-character hex transaction ID" class="form-control">
+  </div>
+  <button type="submit" class="btn btn-primary">Submit Endorsement</button>
+</form>
+
+<p class="hint">The endorsement transaction will enter the mempool and wait to be mined into a block.</p>
+{% endblock %}
