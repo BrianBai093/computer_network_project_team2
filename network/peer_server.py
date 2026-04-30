@@ -63,10 +63,16 @@ def receive_transaction():
     if state["seen"].seen(msg_id):
         return jsonify({"status": "duplicate"}), 200
 
-    # Add to mempool
+    # Deserialize, verify signature, add to mempool
     from blockchain.transaction import Transaction
+    from application.crypto_utils import verify
+    from config import TX_COINBASE
     try:
         tx = Transaction.from_dict(tx_dict)
+        if tx.tx_type == TX_COINBASE:
+            return jsonify({"error": "COINBASE transactions are not relayable"}), 400
+        if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
+            return jsonify({"error": "invalid signature"}), 400
         state["mempool"].add(tx)
     except Exception as e:
         return jsonify({"error": str(e)}), 400
