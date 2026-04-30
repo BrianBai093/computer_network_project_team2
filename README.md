@@ -2,6 +2,8 @@
 
 > A P2P blockchain that gives every real photograph a **tamper-evident fingerprint**, so anyone can later verify *where it came from* — even in a world full of AI-generated images.
 
+<img width="1350" height="1430" alt="image" src="https://github.com/user-attachments/assets/e4c37711-a390-4a15-9c33-c4c266edb881" />
+
 ---
 
 ## 📌 At a glance
