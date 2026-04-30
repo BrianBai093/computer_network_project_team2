@@ -14,6 +14,8 @@ Options:
 
 import argparse
 import logging
+import signal
+import sys
 import threading
 
 from config import PEER_DEFAULT_PORT, WALLET_FILE
@@ -27,20 +29,35 @@ log = logging.getLogger(__name__)
 
 def build_node_state(wallet_file: str) -> dict:
     """Initialize the shared node state dictionary."""
-    from blockchain.chain   import Chain
+    from blockchain.chain import Chain
     from blockchain.mempool import Mempool
-    from network.gossip     import SeenMessages
+    from network.gossip import SeenMessages
     from application.wallet import Wallet
 
     return {
-        "chain":       Chain(),
-        "mempool":     Mempool(),
+        "chain": Chain(),
+        "mempool": Mempool(),
         "known_peers": set(),
-        "seen":        SeenMessages(),
-        "wallet":      Wallet.from_file(wallet_file),
-        "stop_event":  threading.Event(),
-        "self_url":    "",   # filled after registration
+        "seen": SeenMessages(),
+        "wallet": Wallet.from_file(wallet_file),
+        "stop_event": threading.Event(),
+        "self_url": "",   # filled after registration
     }
+
+
+def install_signal_handlers(stop_event: threading.Event) -> None:
+    """Wire Ctrl-C and termination signals to the shared stop event.
+
+    Args:
+        stop_event: Event used by background threads for graceful shutdown.
+    """
+    def handle_shutdown(signum, frame):
+        log.info("Shutdown signal received; stopping background threads")
+        stop_event.set()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_shutdown)
+    signal.signal(signal.SIGTERM, handle_shutdown)
 
 
 def start_mining(state: dict, difficulty: int):
@@ -48,13 +65,13 @@ def start_mining(state: dict, difficulty: int):
     Background mining thread: continuously pull transactions from the mempool,
     mine a new block, append it to the chain, and broadcast it.
     """
-    from blockchain.mining   import mine_block, adjust_difficulty
+    from blockchain.mining import mine_block, adjust_difficulty
     from network.peer_client import broadcast_block
 
-    chain   = state["chain"]
+    chain = state["chain"]
     mempool = state["mempool"]
-    wallet  = state["wallet"]
-    stop    = state["stop_event"]
+    wallet = state["wallet"]
+    stop = state["stop_event"]
 
     log.info("Mining thread started (difficulty %d)", difficulty)
 
@@ -64,8 +81,8 @@ def start_mining(state: dict, difficulty: int):
             stop.wait(1)
             continue
         prev = chain.last_block
-        blk  = mine_block(prev, txs, wallet.public_key,
-                          difficulty, stop_event=stop)
+        blk = mine_block(prev, txs, wallet.public_key,
+                         difficulty, stop_event=stop)
         if blk is None:
             break   # stop_event triggered
 
@@ -101,10 +118,11 @@ def main():
     # ── Initialize state ─────────────────────────────────
     state = build_node_state(args.wallet_file)
     state["self_url"] = self_url
+    install_signal_handlers(state["stop_event"])
 
     # ── Register with Tracker + initial sync ─────────────
     from network.peer_client import register_with_tracker
-    from network.sync        import initial_sync, heartbeat_loop
+    from network.sync import initial_sync, heartbeat_loop
 
     ok = register_with_tracker(args.tracker_url, self_url)
     log.info("Tracker registration: %s", "OK" if ok else "FAILED (tracker may not be running)")
