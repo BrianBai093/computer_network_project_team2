@@ -52,7 +52,8 @@ def broadcast_block(block, peers: list[str],
     """Broadcast a block to known peers (fire-and-forget)."""
     if not msg_id:
         msg_id = _new_msg_id(block.to_dict())
-    payload = {"block": block.to_dict(), "ttl": ttl, "msg_id": msg_id}
+    payload = {"block": block.to_dict(), "ttl": ttl, "msg_id": msg_id,
+               "sender_url": exclude_self}
     for peer in peers:
         if peer == exclude_self:
             continue
