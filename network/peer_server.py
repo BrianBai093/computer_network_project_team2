@@ -109,6 +109,8 @@ def receive_block():
         return jsonify({"status": "duplicate"}), 200
 
     from blockchain.block import Block
+    from blockchain.chain import Chain
+    from network.peer_client import broadcast_block, fetch_chain
     try:
         blk = Block.from_dict(blk_dict)
         appended = state["chain"].append_block(blk)
@@ -116,15 +118,24 @@ def receive_block():
         return jsonify({"error": str(e)}), 400
 
     if appended:
-        # Remove the block's transactions from the local mempool
         state["mempool"].remove([tx.tx_id for tx in blk.transactions])
 
         if ttl > 0:
-            from network.peer_client import broadcast_block
             broadcast_block(
                 blk, list(state["known_peers"]),
                 ttl=ttl - 1, msg_id=msg_id,
                 exclude_self=state.get("self_url", ""),
             )
+    else:
+        # append_block failed — possible fork: pull chain from sender and replace if longer
+        sender_url = data.get("sender_url", "")
+        if sender_url:
+            chain_data = fetch_chain(sender_url)
+            if chain_data:
+                try:
+                    new_chain = Chain.from_list(chain_data)
+                    state["chain"].replace_chain(new_chain.get_all_blocks())
+                except Exception:
+                    pass
 
     return jsonify({"status": "ok", "appended": appended}), 200
