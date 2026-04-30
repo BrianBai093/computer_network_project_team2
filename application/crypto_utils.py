@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 
 from ecdsa import BadSignatureError, NIST256p, SigningKey, VerifyingKey
+from ecdsa.errors import MalformedPointError
 
 
 def generate_keypair() -> tuple[str, str]:
@@ -72,5 +73,5 @@ def verify(public_key: str, message: bytes, signature: str) -> bool:
             message,
             hashfunc=hashlib.sha256,
         )
-    except (BadSignatureError, ValueError):
+    except (BadSignatureError, ValueError, MalformedPointError):
         return False

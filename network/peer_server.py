@@ -108,6 +108,7 @@ def receive_block():
     if state["seen"].seen(msg_id):
         return jsonify({"status": "duplicate"}), 200
 
+    import event_bus as _eb
     from blockchain.block import Block
     from blockchain.chain import Chain
     from network.peer_client import broadcast_block, fetch_chain
@@ -117,9 +118,21 @@ def receive_block():
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
+    _eb.emit("block_received",
+        index=blk.index,
+        hash=blk.hash[:16],
+        tx_count=len(blk.transactions),
+        from_peer=data.get("sender_url", "?"),
+    )
+
     if appended:
         state["mempool"].remove([tx.tx_id for tx in blk.transactions])
-
+        _eb.emit("block_appended",
+            index=blk.index,
+            hash=blk.hash[:16],
+            tx_count=len(blk.transactions),
+            height=state["chain"].height,
+        )
         if ttl > 0:
             broadcast_block(
                 blk, list(state["known_peers"]),
@@ -129,12 +142,32 @@ def receive_block():
     else:
         # append_block failed — possible fork: pull chain from sender and replace if longer
         sender_url = data.get("sender_url", "")
+        old_height = state["chain"].height
+        _eb.emit("fork_detected",
+            index=blk.index,
+            hash=blk.hash[:16],
+            from_peer=sender_url,
+            our_height=old_height,
+        )
         if sender_url:
             chain_data = fetch_chain(sender_url)
             if chain_data:
                 try:
                     new_chain = Chain.from_list(chain_data)
-                    state["chain"].replace_chain(new_chain.get_all_blocks())
+                    replaced = state["chain"].replace_chain(new_chain.get_all_blocks())
+                    if replaced:
+                        all_blks = state["chain"].get_all_blocks()
+                        _eb.emit("chain_replaced",
+                            old_height=old_height,
+                            new_height=state["chain"].height,
+                            from_peer=sender_url,
+                            blocks=[
+                                {"index": b.index, "hash": b.hash,
+                                 "tx_count": len(b.transactions), "ts": b.timestamp,
+                                 "self_mined": False}
+                                for b in all_blks[-15:]
+                            ],
+                        )
                 except Exception:
                     pass
 

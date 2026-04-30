@@ -86,17 +86,29 @@ def start_mining(state: dict, difficulty: int):
         if blk is None:
             break   # stop_event triggered
 
-        appended = chain.append_block(blk)
+        appended = chain.append_block(blk, difficulty=difficulty)
+        if not appended:
+            log.warning("Block #%d failed validation (difficulty=%d, hash=%s…)",
+                        blk.index, difficulty, blk.hash[:16])
         if appended:
             mempool.remove([tx.tx_id for tx in txs])
             log.info("New block #%d mined, hash %s...", blk.index, blk.hash[:16])
+            import event_bus
+            event_bus.emit("block_mined",
+                index=blk.index,
+                hash=blk.hash[:16],
+                tx_count=len(blk.transactions),
+                height=chain.height,
+            )
             broadcast_block(blk, list(state["known_peers"]),
                             exclude_self=state.get("self_url", ""))
 
-            # Dynamic difficulty adjustment based on last 10 blocks
+            # Dynamic difficulty adjustment — exclude genesis (timestamp=0)
+            # to avoid the enormous interval distorting the average.
             all_blocks = chain.get_all_blocks()
-            if len(all_blocks) >= 2:
-                timestamps = [b.timestamp for b in all_blocks[-10:]]
+            real_blocks = [b for b in all_blocks if b.timestamp > 0.0]
+            if len(real_blocks) >= 2:
+                timestamps = [b.timestamp for b in real_blocks[-10:]]
                 difficulty = adjust_difficulty(timestamps,
                                                current_difficulty=difficulty)
 

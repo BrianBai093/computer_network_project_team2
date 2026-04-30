@@ -75,6 +75,6 @@ class Block:
             nonce         = d.get("nonce", 0),
             miner         = d.get("miner", ""),
         )
-        blk.merkle_root = d.get("merkle_root", blk.merkle_root)
-        blk.hash        = d.get("hash", blk.compute_hash())
+        # blk.merkle_root and blk.hash are computed by __post_init__; do not
+        # overwrite with untrusted wire values — chain.py validates them anyway.
         return blk

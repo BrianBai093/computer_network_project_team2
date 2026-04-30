@@ -19,10 +19,12 @@ Pages:
 from datetime import datetime
 import json
 import math
+import queue as _queue
 import os
 
 from flask import (Blueprint, render_template, request,
-                   redirect, url_for, flash, current_app, send_from_directory)
+                   redirect, url_for, flash, current_app, send_from_directory,
+                   Response, stream_with_context)
 
 web_bp = Blueprint("web", __name__)
 BLOCKS_PER_PAGE = 10
@@ -313,6 +315,68 @@ def explorer():
         blocks=all_blocks[start:end],
         page=page,
         total_pages=total_pages,
+    )
+
+
+@web_bp.route("/viz")
+def visualizer():
+    return render_template("viz.html")
+
+
+@web_bp.route("/api/events")
+def sse_events():
+    """Server-Sent Events stream for the real-time visualizer."""
+    import event_bus
+    state = _state()
+
+    def generate():
+        q = event_bus.subscribe()
+        try:
+            # Send initial chain snapshot so the page renders immediately
+            chain = state["chain"]
+            wallet_pub = state["wallet"].public_key
+            all_blks = chain.get_all_blocks()
+            snapshot = {
+                "type": "snapshot",
+                "self_url": state.get("self_url", ""),
+                "height": chain.height,
+                "peer_count": len(state.get("known_peers", set())),
+                "mempool_size": state["mempool"].size(),
+                "peers": list(state.get("known_peers", set())),
+                "blocks": [
+                    {
+                        "index": b.index,
+                        "hash": b.hash,
+                        "tx_count": len(b.transactions),
+                        "ts": b.timestamp,
+                        "self_mined": b.miner == wallet_pub,
+                    }
+                    for b in all_blks[-15:]
+                ],
+            }
+            yield f"data: {json.dumps(snapshot)}\n\n"
+
+            while True:
+                try:
+                    payload = q.get(timeout=5)
+                    yield f"data: {payload}\n\n"
+                except _queue.Empty:
+                    # keepalive + live stats update every 5 s
+                    status = {
+                        "type": "status",
+                        "height": state["chain"].height,
+                        "peer_count": len(state.get("known_peers", set())),
+                        "mempool_size": state["mempool"].size(),
+                        "peers": list(state.get("known_peers", set())),
+                    }
+                    yield f"data: {json.dumps(status)}\n\n"
+        finally:
+            event_bus.unsubscribe(q)
+
+    return Response(
+        stream_with_context(generate()),
+        mimetype="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
