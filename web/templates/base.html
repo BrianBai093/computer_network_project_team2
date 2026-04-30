@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}TrueShot{% endblock %} — P2P Photo Authentication</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav class="navbar">
+    <a class="brand" href="{{ url_for('web.index') }}">TrueShot</a>
+    <ul>
+      <li><a href="{{ url_for('web.register') }}">Register Device</a></li>
+      <li><a href="{{ url_for('web.capture') }}">Record Capture</a></li>
+      <li><a href="{{ url_for('web.verify') }}">Verify Image</a></li>
+      <li><a href="{{ url_for('web.endorse') }}">Endorse</a></li>
+      <li><a href="{{ url_for('web.explorer') }}">Block Explorer</a></li>
+    </ul>
+  </nav>
+
+  <main class="container">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="alert alert-{{ category }}">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
