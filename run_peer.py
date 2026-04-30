@@ -60,6 +60,9 @@ def start_mining(state: dict, difficulty: int):
 
     while not stop.is_set():
         txs  = mempool.get_pending()
+        if not txs:
+            stop.wait(1)
+            continue
         prev = chain.last_block
         blk  = mine_block(prev, txs, wallet.public_key,
                           difficulty, stop_event=stop)

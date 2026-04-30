@@ -7,8 +7,8 @@ MAX_BLOCK_TXS   = 100          # Maximum transactions per block
 GENESIS_HASH    = "0" * 64     # previous_hash for the genesis block
 
 # ── Network parameters ───────────────────────────────────────────────────────
-TRACKER_DEFAULT_PORT = 5000
-PEER_DEFAULT_PORT    = 8001
+TRACKER_DEFAULT_PORT = 50000
+PEER_DEFAULT_PORT    = 60001
 HEARTBEAT_INTERVAL   = 30      # Node heartbeat interval (seconds)
 GOSSIP_TTL           = 4       # Maximum hops for Gossip messages
 SEEN_MSG_CACHE_SIZE  = 1000    # Capacity of the seen-message cache
