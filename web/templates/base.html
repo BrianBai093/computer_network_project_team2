@@ -4,26 +4,33 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}TrueShot{% endblock %} — P2P Photo Authentication</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <nav class="navbar">
     <a class="brand" href="{{ url_for('web.index') }}">TrueShot</a>
     <ul>
-      <li><a href="{{ url_for('web.register') }}">Register Device</a></li>
-      <li><a href="{{ url_for('web.capture') }}">Record Capture</a></li>
-      <li><a href="{{ url_for('web.verify') }}">Verify Image</a></li>
+      <li><a href="{{ url_for('web.register') }}">Register</a></li>
+      <li><a href="{{ url_for('web.capture') }}">Capture</a></li>
+      <li><a href="{{ url_for('web.verify') }}">Verify</a></li>
       <li><a href="{{ url_for('web.endorse') }}">Endorse</a></li>
-      <li><a href="{{ url_for('web.explorer') }}">Block Explorer</a></li>
+      <li><a href="{{ url_for('web.explorer') }}">Explorer</a></li>
       <li><a href="{{ url_for('web.visualizer') }}">Visualizer</a></li>
     </ul>
   </nav>
 
-  <main class="container">
+  <main>
     {% with messages = get_flashed_messages(with_categories=true) %}
-      {% for category, message in messages %}
-        <div class="alert alert-{{ category }}">{{ message }}</div>
-      {% endfor %}
+      {% if messages %}
+        <div class="container" style="padding-bottom: 0">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }}">{{ message }}</div>
+          {% endfor %}
+        </div>
+      {% endif %}
     {% endwith %}
 
     {% block content %}{% endblock %}

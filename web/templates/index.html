@@ -2,32 +2,57 @@
 {% block title %}Home{% endblock %}
 
 {% block content %}
-<h1>TrueShot Node Status</h1>
+<div class="container" style="padding-bottom: 2rem">
+  <div class="hero-eyebrow">P2P Photo Authentication Network</div>
+  <h1 class="hero-title">TRUE<span>SHOT</span></h1>
+</div>
 
-<div class="stats-grid">
-  <div class="stat-card">
-    <div class="stat-value">{{ height }}</div>
-    <div class="stat-label">Chain Height</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-value">{{ peer_count }}</div>
-    <div class="stat-label">Known Peers</div>
-  </div>
-  <div class="stat-card">
-    <div class="stat-value">{{ mempool_size }}</div>
-    <div class="stat-label">Pending Transactions</div>
+<!-- Full-bleed stats marquee -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="marquee-item">Chain Height <span class="marquee-sep">—</span> {{ height }}</span>
+    <span class="marquee-item">Known Peers <span class="marquee-sep">—</span> {{ peer_count }}</span>
+    <span class="marquee-item">Pending Txs <span class="marquee-sep">—</span> {{ mempool_size }}</span>
+    <span class="marquee-item">Status <span class="marquee-sep">—</span> Online</span>
+    <span class="marquee-item">Network <span class="marquee-sep">—</span> TrueShot P2P</span>
+    <!-- duplicate for seamless loop -->
+    <span class="marquee-item">Chain Height <span class="marquee-sep">—</span> {{ height }}</span>
+    <span class="marquee-item">Known Peers <span class="marquee-sep">—</span> {{ peer_count }}</span>
+    <span class="marquee-item">Pending Txs <span class="marquee-sep">—</span> {{ mempool_size }}</span>
+    <span class="marquee-item">Status <span class="marquee-sep">—</span> Online</span>
+    <span class="marquee-item">Network <span class="marquee-sep">—</span> TrueShot P2P</span>
   </div>
 </div>
 
-<div class="info-box">
-  <h3>Latest Block Hash</h3>
-  <code>{{ last_hash }}</code>
-</div>
+<div class="container" style="padding-top: 0">
+  <!-- Stats grid -->
+  <div class="stats-grid">
+    <div class="stat-card">
+      <div class="stat-value">{{ height }}</div>
+      <div class="stat-label">Chain Height</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ peer_count }}</div>
+      <div class="stat-label">Known Peers</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-value">{{ mempool_size }}</div>
+      <div class="stat-label">Pending Transactions</div>
+    </div>
+  </div>
 
-<div class="action-links">
-  <a class="btn" href="{{ url_for('web.register') }}">Register Device</a>
-  <a class="btn" href="{{ url_for('web.capture') }}">Record Capture</a>
-  <a class="btn btn-primary" href="{{ url_for('web.verify') }}">Verify Image</a>
-  <a class="btn" href="{{ url_for('web.explorer') }}">Browse Blockchain</a>
+  <!-- Latest block hash -->
+  <div class="info-box">
+    <h3>Latest Block Hash</h3>
+    <code>{{ last_hash }}</code>
+  </div>
+
+  <!-- CTAs -->
+  <div class="action-links">
+    <a class="btn" href="{{ url_for('web.register') }}">Register Device</a>
+    <a class="btn" href="{{ url_for('web.capture') }}">Record Capture</a>
+    <a class="btn btn-primary" href="{{ url_for('web.verify') }}">Verify Image</a>
+    <a class="btn" href="{{ url_for('web.explorer') }}">Browse Blockchain</a>
+  </div>
 </div>
 {% endblock %}

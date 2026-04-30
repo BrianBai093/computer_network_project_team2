@@ -2,28 +2,33 @@
 {% block title %}Endorse{% endblock %}
 
 {% block content %}
-<h1>Endorse a Photo</h1>
-<p>Endorse an on-chain CAPTURE transaction to confirm its authenticity.</p>
+<div class="container">
+  <h1 class="page-title">Endorse<br>a Photo</h1>
+  <p style="color: var(--muted-fg); margin-bottom: 3rem; font-size: 1rem;">
+    Endorse an on-chain CAPTURE transaction to confirm its authenticity.
+  </p>
 
-<form method="POST">
-  <div class="form-group">
-    <label>Target CAPTURE Transaction ID</label>
+  <form method="POST">
+    <div class="form-group">
+      <label>Target CAPTURE Transaction ID</label>
+      {% if prefill_tx_id %}
+        <input type="text" name="target_tx_id" value="{{ prefill_tx_id }}"
+               readonly class="form-control prefilled-input">
+        <p class="hint">TX ID was pre-filled from the Block Explorer (read-only).</p>
+      {% else %}
+        <input type="text" name="target_tx_id" required
+               placeholder="64-character hex transaction ID" class="form-control">
+      {% endif %}
+    </div>
+
+    <button type="submit" class="btn btn-primary">Submit Endorsement</button>
     {% if prefill_tx_id %}
-      <!-- TX ID pre-filled from Explorer; shown as read-only -->
-      <input type="text" name="target_tx_id" value="{{ prefill_tx_id }}"
-             readonly class="form-control prefilled-input">
-      <p class="hint">TX ID was filled automatically from the Block Explorer (read-only).</p>
-    {% else %}
-      <input type="text" name="target_tx_id" required
-             placeholder="64-character hex transaction ID" class="form-control">
+      <a href="{{ url_for('web.endorse') }}" class="btn">Enter TX ID manually</a>
     {% endif %}
-  </div>
+  </form>
 
-  <button type="submit" class="btn btn-primary">Submit Endorsement</button>
-  {% if prefill_tx_id %}
-    <a href="{{ url_for('web.endorse') }}" class="btn">Enter TX ID manually</a>
-  {% endif %}
-</form>
-
-<p class="hint">The endorsement transaction will enter the mempool and wait to be mined into a block.</p>
+  <p class="hint" style="margin-top: 2rem">
+    The endorsement transaction will enter the mempool and wait to be mined into a block.
+  </p>
+</div>
 {% endblock %}

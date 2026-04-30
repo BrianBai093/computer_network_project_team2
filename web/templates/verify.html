@@ -2,113 +2,106 @@
 {% block title %}Verify Image{% endblock %}
 
 {% block content %}
-<h1>Image Authenticity Verification</h1>
+<div class="container">
+  <h1 class="page-title">Image<br>Verification</h1>
 
-<form method="POST" enctype="multipart/form-data">
-  <div class="form-group">
-    <label>Upload image to verify</label>
-    <input type="file" name="image" accept="image/*" required class="form-control">
-  </div>
-  <button type="submit" class="btn btn-primary">Verify</button>
-</form>
-
-{% if detail %}
-
-  {% if detail.result.value == "AUTHENTIC" %}
-  <!-- Full authentication card for verified images -->
-  <div class="auth-card">
-    <div class="auth-card-header">
-      <span class="auth-badge auth-authentic">&#10003; Authenticated</span>
+  <form method="POST" enctype="multipart/form-data" style="margin-bottom: 3rem">
+    <div class="form-group">
+      <label>Upload image to verify</label>
+      <input type="file" name="image" accept="image/*" required class="form-control">
     </div>
-    <table class="info-table" style="margin-top:0.75rem">
-      <tr>
-        <th>Captured by</th>
-        <td><code>{{ sender_display if sender_display else '—' }}</code></td>
-      </tr>
-      <tr>
-        <th>Device Name</th>
-        <td>{{ device_name if device_name else '—' }}</td>
-      </tr>
-      <tr>
-        <th>Capture Time</th>
-        <td>{{ timestamp_display if timestamp_display else '—' }}</td>
-      </tr>
-      <tr>
-        <th>Location</th>
-        <td>
-          {% if detail.location %}
-            <span id="locationDisplay">{{ detail.location }}</span>
-          {% else %}
-            Unknown
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <th>Capture Method</th>
-        <td>
-          {% if capture_source == "camera" %}
-            Camera (taken on-device)
-          {% elif capture_source == "upload" %}
-            File Upload
-          {% else %}
-            —
-          {% endif %}
-        </td>
-      </tr>
-      <tr>
-        <th>Block Index</th>
-        <td>{{ block_index if block_index is not none else '—' }}</td>
-      </tr>
-      <tr>
-        <th>Transaction ID</th>
-        <td>
-          {% if detail.matched_tx_id %}
-            <code>{{ detail.matched_tx_id[:16] }}...</code>
-          {% else %}—{% endif %}
-        </td>
-      </tr>
-      <tr>
-        <th>Endorsements</th>
-        <td>{{ detail.endorsements | length }}</td>
-      </tr>
-    </table>
+    <button type="submit" class="btn btn-primary">Verify Authenticity</button>
+  </form>
 
-    {% if image_file %}
-    <!-- Show the original image stored at capture time -->
-    <div class="auth-original-image">
-      <p><strong>Original Image:</strong></p>
-      <img src="{{ url_for('web.uploaded_file', filename=image_file) }}"
-           alt="Original captured image">
+  {% if detail %}
+
+    {% if detail.result.value == "AUTHENTIC" %}
+    <div class="auth-card">
+      <div class="auth-card-header">
+        <span class="auth-badge auth-authentic">&#10003; Authenticated</span>
+      </div>
+      <table class="info-table">
+        <tr>
+          <th>Captured by</th>
+          <td><code>{{ sender_display if sender_display else '—' }}</code></td>
+        </tr>
+        <tr>
+          <th>Device Name</th>
+          <td>{{ device_name if device_name else '—' }}</td>
+        </tr>
+        <tr>
+          <th>Capture Time</th>
+          <td>{{ timestamp_display if timestamp_display else '—' }}</td>
+        </tr>
+        <tr>
+          <th>Location</th>
+          <td>
+            {% if detail.location %}
+              <span id="locationDisplay">{{ detail.location }}</span>
+            {% else %}
+              Unknown
+            {% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Capture Method</th>
+          <td>
+            {% if capture_source == "camera" %}Camera (taken on-device)
+            {% elif capture_source == "upload" %}File Upload
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Block Index</th>
+          <td>{{ block_index if block_index is not none else '—' }}</td>
+        </tr>
+        <tr>
+          <th>Transaction ID</th>
+          <td>
+            {% if detail.matched_tx_id %}
+              <code>{{ detail.matched_tx_id[:16] }}...</code>
+            {% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <th>Endorsements</th>
+          <td>{{ detail.endorsements | length }}</td>
+        </tr>
+      </table>
+
+      {% if image_file %}
+      <div class="auth-original-image">
+        <p>Original Image</p>
+        <img src="{{ url_for('web.uploaded_file', filename=image_file) }}"
+             alt="Original captured image">
+      </div>
+      {% endif %}
+    </div>
+
+    {% else %}
+    <div class="verify-result result-{{ detail.result.value.lower() }}">
+      <h2>{{ detail.result.value }}</h2>
+      <table class="info-table">
+        <tr><th>SHA-256</th><td><code>{{ detail.image_hash }}</code></td></tr>
+        <tr><th>pHash</th>  <td><code>{{ detail.phash }}</code></td></tr>
+        {% if detail.matched_tx_id %}
+          <tr><th>Matched TX ID</th>    <td><code>{{ detail.matched_tx_id }}</code></td></tr>
+          <tr><th>Capture Device ID</th><td><code>{{ detail.device_id or '—' }}</code></td></tr>
+          <tr><th>Endorsements</th>     <td>{{ detail.endorsements | length }}</td></tr>
+        {% endif %}
+        {% if detail.phash_distance is not none %}
+          <tr><th>pHash Distance</th><td>{{ detail.phash_distance }}</td></tr>
+        {% endif %}
+        <tr><th>Reason</th><td>{{ detail.message }}</td></tr>
+      </table>
     </div>
     {% endif %}
-  </div>
 
-  {% else %}
-  <!-- Standard result for SUSPICIOUS / UNKNOWN -->
-  <div class="verify-result result-{{ detail.result.value.lower() }}">
-    <h2>Result: {{ detail.result.value }}</h2>
-    <table class="info-table">
-      <tr><th>SHA-256</th><td><code>{{ detail.image_hash }}</code></td></tr>
-      <tr><th>pHash</th>  <td><code>{{ detail.phash }}</code></td></tr>
-      {% if detail.matched_tx_id %}
-        <tr><th>Matched TX ID</th>    <td><code>{{ detail.matched_tx_id }}</code></td></tr>
-        <tr><th>Capture Device ID</th><td><code>{{ detail.device_id or '—' }}</code></td></tr>
-        <tr><th>Endorsements</th>     <td>{{ detail.endorsements | length }}</td></tr>
-      {% endif %}
-      {% if detail.phash_distance is not none %}
-        <tr><th>pHash Distance</th><td>{{ detail.phash_distance }}</td></tr>
-      {% endif %}
-      <tr><th>Reason</th><td>{{ detail.message }}</td></tr>
-    </table>
-  </div>
   {% endif %}
-
-{% endif %}
+</div>
 
 {% if detail and detail.result.value == "AUTHENTIC" and detail.location %}
 <script>
-// If location is stored as "lat,lng" coordinates, reverse-geocode to show an
-// English place name alongside the raw coordinates.
 (function () {
   const raw = {{ detail.location | tojson }};
   const m   = raw.match(/^(-?\d+\.\d+),(-?\d+\.\d+)$/);

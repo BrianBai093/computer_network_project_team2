@@ -2,67 +2,59 @@
 {% block title %}Record Capture{% endblock %}
 
 {% block content %}
-<h1>Record Photo Capture</h1>
-<p>Take a photo with your camera or upload an image file to record it on the blockchain.</p>
+<div class="container">
+  <h1 class="page-title">Record<br>Capture</h1>
+  <p style="color: var(--muted-fg); margin-bottom: 3rem; font-size: 1rem;">
+    Take a photo with your camera or upload an image to record it on the blockchain.
+  </p>
 
-<form method="POST" enctype="multipart/form-data" id="captureForm">
+  <form method="POST" enctype="multipart/form-data" id="captureForm">
 
-  <!-- Camera section -->
-  <div class="card camera-section">
-    <h3>Camera</h3>
+    <!-- Camera section -->
+    <div class="card camera-section">
+      <div class="section-label">Camera</div>
 
-    <!-- Live camera view, hidden until opened -->
-    <div id="cameraContainer" style="display:none">
-      <video id="cameraVideo" autoplay playsinline muted
-             style="width:100%;max-width:480px;border-radius:6px;background:#000"></video>
-      <div style="margin-top:0.75rem;display:flex;gap:0.5rem">
-        <button type="button" class="btn btn-primary" id="snapBtn">Take Photo</button>
-        <button type="button" class="btn"             id="closeCamBtn">Close Camera</button>
+      <div id="cameraContainer" style="display:none">
+        <video id="cameraVideo" autoplay playsinline muted></video>
+        <div style="display:flex;gap:0.75rem;margin-bottom:1rem">
+          <button type="button" class="btn btn-primary" id="snapBtn">Take Photo</button>
+          <button type="button" class="btn" id="closeCamBtn">Close Camera</button>
+        </div>
       </div>
+
+      <canvas id="snapCanvas" style="display:none"></canvas>
+
+      <div id="snapPreview" style="display:none;margin-bottom:1rem">
+        <img id="snapImg" alt="Captured photo">
+        <p>Photo captured — ready to record.</p>
+        <button type="button" class="btn" id="retakeBtn">Retake</button>
+      </div>
+
+      <button type="button" class="btn btn-primary" id="openCamBtn">Open Camera</button>
     </div>
 
-    <!-- Hidden canvas used to grab a frame -->
-    <canvas id="snapCanvas" style="display:none"></canvas>
-
-    <!-- Preview shown after snapshot is taken -->
-    <div id="snapPreview" style="display:none;margin-top:0.75rem">
-      <img id="snapImg" alt="Captured photo"
-           style="max-width:320px;border-radius:6px;border:2px solid #28a745">
-      <p style="color:#155724;font-size:0.9rem;margin-top:0.4rem">
-        Photo captured. Click "Record on Blockchain" to submit.
-      </p>
-      <button type="button" class="btn" id="retakeBtn">Retake</button>
+    <!-- File upload -->
+    <div class="form-group">
+      <label>Or upload from file</label>
+      <input type="file" name="image" id="imageInput" accept="image/*" class="form-control">
     </div>
 
-    <button type="button" class="btn btn-primary" id="openCamBtn"
-            style="margin-top:0.5rem">Open Camera</button>
-  </div>
-
-  <!-- File upload fallback -->
-  <div class="form-group" style="margin-top:1rem">
-    <label>Or upload from file</label>
-    <input type="file" name="image" id="imageInput" accept="image/*" class="form-control">
-  </div>
-
-  <!-- Location with geolocation helper -->
-  <div class="form-group">
-    <label>Location (optional)</label>
-    <div style="display:flex;gap:0.5rem;align-items:flex-start">
-      <!-- Stores precise lat,lng coordinates in the blockchain payload -->
-      <input type="text" name="location" id="locationInput"
-             placeholder="e.g. 40.712800,-74.006000 or leave blank" class="form-control">
-      <button type="button" class="btn" id="geoBtn" title="Use current location"
-              style="white-space:nowrap;flex-shrink:0">Locate Me</button>
+    <!-- Location -->
+    <div class="form-group">
+      <label>Location (optional)</label>
+      <div class="input-row">
+        <input type="text" name="location" id="locationInput"
+               placeholder="e.g. 40.712800,-74.006000 or leave blank" class="form-control">
+        <button type="button" class="btn" id="geoBtn" title="Use current location">Locate Me</button>
+      </div>
+      <p class="hint" id="geoStatus"></p>
     </div>
-    <!-- Human-readable English place name shown as a preview only (not stored) -->
-    <p class="hint" id="geoStatus"></p>
-  </div>
 
-  <!-- Hidden field set by JS to track how the image was acquired -->
-  <input type="hidden" name="capture_source" id="captureSource" value="upload">
+    <input type="hidden" name="capture_source" id="captureSource" value="upload">
 
-  <button type="submit" class="btn btn-primary">Record on Blockchain</button>
-</form>
+    <button type="submit" class="btn btn-primary">Record on Blockchain</button>
+  </form>
+</div>
 
 <script>
 (function () {
@@ -83,13 +75,9 @@
   const locationInput   = document.getElementById('locationInput');
   const geoStatus       = document.getElementById('geoStatus');
 
-  // --- Camera -----------------------------------------------------------
-
   async function startCamera() {
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' }
-      });
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
       video.srcObject = stream;
       openCamBtn.style.display      = 'none';
       cameraContainer.style.display = 'block';
@@ -118,11 +106,9 @@
       capturedBlob = blob;
       snapImg.src  = URL.createObjectURL(blob);
       snapPreview.style.display = 'block';
-      // Inject the captured frame into the file input via DataTransfer
       const dt = new DataTransfer();
       dt.items.add(new File([blob], 'camera_capture.jpg', { type: 'image/jpeg' }));
       imageInput.files = dt.files;
-      // Mark this image as taken with the camera
       document.getElementById('captureSource').value = 'camera';
     }, 'image/jpeg', 0.92);
   });
@@ -130,12 +116,10 @@
   retakeBtn.addEventListener('click', async () => {
     capturedBlob              = null;
     snapPreview.style.display = 'none';
-    // Clear the file input
     imageInput.files = new DataTransfer().files;
     await startCamera();
   });
 
-  // If user manually picks a file, discard any camera capture and mark as upload
   imageInput.addEventListener('change', () => {
     if (imageInput.files.length > 0) {
       capturedBlob              = null;
@@ -143,8 +127,6 @@
       document.getElementById('captureSource').value = 'upload';
     }
   });
-
-  // --- Geolocation ------------------------------------------------------
 
   geoBtn.addEventListener('click', () => {
     if (!navigator.geolocation) {
@@ -159,10 +141,8 @@
         const lat = pos.coords.latitude.toFixed(6);
         const lng = pos.coords.longitude.toFixed(6);
         const coords = `${lat},${lng}`;
-        // Always store precise coordinates in the payload field
         locationInput.value   = coords;
-        geoStatus.textContent = `Coordinates stored: ${coords} — fetching place name...`;
-        // Reverse-geocode for a human-readable English preview (display only, not stored)
+        geoStatus.textContent = `Stored: ${coords} — fetching place name...`;
         fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`)
           .then(r => r.json())
           .then(data => {
@@ -170,16 +150,13 @@
             const city    = addr.city || addr.town || addr.village || addr.county || '';
             const country = addr.country || '';
             const label   = city && country ? `${city}, ${country}` : coords;
-            // Show readable name as a hint; the input still holds lat,lng
             geoStatus.textContent = `Stored: ${coords}  |  Place: ${label}`;
           })
-          .catch(() => {
-            geoStatus.textContent = `Stored: ${coords}`;
-          })
+          .catch(() => { geoStatus.textContent = `Stored: ${coords}`; })
           .finally(() => { geoBtn.disabled = false; });
       },
       err => {
-        geoStatus.textContent = 'Location denied. Please type manually: ' + err.message;
+        geoStatus.textContent = 'Location denied: ' + err.message;
         geoBtn.disabled = false;
       },
       { timeout: 10000 }

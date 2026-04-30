@@ -2,46 +2,50 @@
 {% block title %}Register Device{% endblock %}
 
 {% block content %}
-<h1>Device Registration</h1>
+<div class="container">
+  <h1 class="page-title">Device<br>Registration</h1>
 
-<div class="info-box">
-  <p><strong>Device ID:</strong> <code>{{ device_id }}</code></p>
-  <p><strong>Public Key (first 32 chars):</strong> <code>{{ public_key[:32] }}...</code></p>
-</div>
+  <div class="info-box" style="margin-bottom: 2.5rem">
+    <h3>Device ID</h3>
+    <code>{{ device_id }}</code>
+    <h3 style="margin-top: 1rem">Public Key (first 32 chars)</h3>
+    <code>{{ public_key[:32] }}...</code>
+  </div>
 
-<!-- Auto-detected device info preview -->
-<div class="card" id="registerPreview">
-  <h3 style="margin-bottom:0.75rem">Detected Device Information</h3>
-  <table class="info-table">
-    <tr>
-      <th>Device Name</th>
-      <td id="previewDeviceName"><em>Detecting...</em></td>
-    </tr>
-    <tr>
-      <th>Serial (UUID)</th>
-      <td><code id="previewSerial"><em>Generating...</em></code></td>
-    </tr>
-    <tr>
-      <th>User Agent</th>
-      <td style="font-size:0.8rem;word-break:break-all" id="previewUA"><em>Reading...</em></td>
-    </tr>
-  </table>
-  <p class="hint" style="margin-top:0.6rem">
-    The serial UUID is stored in <code>localStorage</code> and reused on subsequent visits.
+  <div class="card" id="registerPreview">
+    <div class="section-label">Detected Device Info</div>
+    <table class="info-table">
+      <tr>
+        <th>Device Name</th>
+        <td id="previewDeviceName"><em class="detecting">Detecting...</em></td>
+      </tr>
+      <tr>
+        <th>Serial (UUID)</th>
+        <td><code id="previewSerial"><em class="detecting">Generating...</em></code></td>
+      </tr>
+      <tr>
+        <th>User Agent</th>
+        <td style="word-break:break-all" id="previewUA"><em class="detecting">Reading...</em></td>
+      </tr>
+    </table>
+    <p class="hint" style="margin-top: 1rem">
+      Serial UUID is stored in localStorage and reused on subsequent visits.
+    </p>
+  </div>
+
+  <form method="POST" id="registerForm" style="margin-top: 2rem">
+    <input type="hidden" name="device_name" id="inputDeviceName">
+    <input type="hidden" name="serial"      id="inputSerial">
+    <input type="hidden" name="user_agent"  id="inputUserAgent">
+    <button type="submit" class="btn btn-primary">Register This Device</button>
+  </form>
+  <p class="hint" style="margin-top: 1rem">
+    The registration transaction will enter the mempool and wait to be mined into a block.
   </p>
 </div>
 
-<form method="POST" id="registerForm" style="margin-top:1rem">
-  <input type="hidden" name="device_name" id="inputDeviceName">
-  <input type="hidden" name="serial"      id="inputSerial">
-  <input type="hidden" name="user_agent"  id="inputUserAgent">
-  <button type="submit" class="btn btn-primary">Register This Device</button>
-</form>
-<p class="hint">The registration transaction will enter the mempool and wait to be mined into a block.</p>
-
 <script>
 (function () {
-  // Parse a human-readable device/OS name from the User-Agent string
   function parseDeviceName(ua) {
     const paren = ua.match(/\(([^)]+)\)/);
     if (paren) {
@@ -62,7 +66,6 @@
     return 'Unknown Device';
   }
 
-  // Retrieve or generate a persistent UUID stored in localStorage
   function getOrCreateSerial() {
     const KEY = 'trueshot_device_serial';
     let serial = localStorage.getItem(KEY);
@@ -80,12 +83,10 @@
   const deviceName = parseDeviceName(ua);
   const serial     = getOrCreateSerial();
 
-  // Populate hidden form fields
   document.getElementById('inputDeviceName').value = deviceName;
   document.getElementById('inputSerial').value     = serial;
   document.getElementById('inputUserAgent').value  = ua;
 
-  // Update preview card
   document.getElementById('previewDeviceName').textContent = deviceName;
   document.getElementById('previewSerial').textContent     = serial;
   document.getElementById('previewUA').textContent         = ua;
