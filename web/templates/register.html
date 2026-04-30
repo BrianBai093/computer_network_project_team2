@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Register Device{% endblock %}
+
+{% block content %}
+<h1>Device Registration</h1>
+
+<div class="info-box">
+  <p><strong>Device ID:</strong> <code>{{ device_id }}</code></p>
+  <p><strong>Public Key (first 32 chars):</strong> <code>{{ public_key[:32] }}...</code></p>
+</div>
+
+<form method="POST">
+  <div class="form-group">
+    <label>Device Model</label>
+    <input type="text" name="model" placeholder="e.g. Canon EOS R5" class="form-control">
+  </div>
+  <div class="form-group">
+    <label>Serial Number (optional)</label>
+    <input type="text" name="serial" placeholder="Device serial number" class="form-control">
+  </div>
+  <button type="submit" class="btn btn-primary">Submit Registration Transaction</button>
+</form>
+<p class="hint">The registration transaction will enter the mempool and wait to be mined into a block.</p>
+{% endblock %}
