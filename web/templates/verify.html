@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Verify Image{% endblock %}
+
+{% block content %}
+<h1>Image Authenticity Verification</h1>
+
+<form method="POST" enctype="multipart/form-data">
+  <div class="form-group">
+    <label>Upload image to verify</label>
+    <input type="file" name="image" accept="image/*" required class="form-control">
+  </div>
+  <button type="submit" class="btn btn-primary">Verify</button>
+</form>
+
+{% if detail %}
+  <div class="verify-result result-{{ detail.result.value.lower() }}">
+    <h2>Result: {{ detail.result.value }}</h2>
+    <table class="info-table">
+      <tr><th>SHA-256</th><td><code>{{ detail.image_hash }}</code></td></tr>
+      <tr><th>pHash</th><td><code>{{ detail.phash }}</code></td></tr>
+      {% if detail.matched_tx_id %}
+      <tr><th>Matched TX ID</th><td><code>{{ detail.matched_tx_id }}</code></td></tr>
+      <tr><th>Capture Device</th><td><code>{{ detail.matched_device }}</code></td></tr>
+      <tr><th>Endorsements</th><td>{{ detail.endorsement_count }}</td></tr>
+      {% endif %}
+      {% if detail.similar_tx_ids %}
+      <tr><th>Similar Transactions</th><td>{{ detail.similar_tx_ids | join(', ') }}</td></tr>
+      {% endif %}
+      <tr><th>Reason</th><td>{{ detail.reason }}</td></tr>
+    </table>
+  </div>
+{% endif %}
+{% endblock %}
