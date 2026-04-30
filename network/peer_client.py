@@ -11,10 +11,13 @@ Functions:
 
 import hashlib
 import json
+import random
 import uuid
 import logging
 
 import requests
+
+GOSSIP_FAN_OUT = 5  # max peers to forward each gossip message
 
 from config import GOSSIP_TTL
 
@@ -36,9 +39,8 @@ def broadcast_transaction(tx, peers: list[str],
     if not msg_id:
         msg_id = _new_msg_id(tx.to_dict())
     payload = {"tx": tx.to_dict(), "ttl": ttl, "msg_id": msg_id}
-    for peer in peers:
-        if peer == exclude_self:
-            continue
+    targets = [p for p in peers if p != exclude_self]
+    for peer in random.sample(targets, min(GOSSIP_FAN_OUT, len(targets))):
         try:
             requests.post(f"{peer}/api/transaction", json=payload, timeout=3)
         except Exception as e:
@@ -54,9 +56,8 @@ def broadcast_block(block, peers: list[str],
         msg_id = _new_msg_id(block.to_dict())
     payload = {"block": block.to_dict(), "ttl": ttl, "msg_id": msg_id,
                "sender_url": exclude_self}
-    for peer in peers:
-        if peer == exclude_self:
-            continue
+    targets = [p for p in peers if p != exclude_self]
+    for peer in random.sample(targets, min(GOSSIP_FAN_OUT, len(targets))):
         try:
             requests.post(f"{peer}/api/block", json=payload, timeout=3)
         except Exception as e:
