@@ -221,3 +221,6 @@ wallet.json
 !requirements.txt
 .DS_Store
 .pytest_cache/
+
+# Locally stored capture images (not committed to repo)
+web/uploads/

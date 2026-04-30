@@ -13,32 +13,32 @@ Pages:
   POST /endorse             Submit endorsement
   GET  /explorer            Block explorer
   GET  /explorer/block/<index>  Single block detail
+  GET  /uploads/<filename>  Serve locally stored capture images
 """
 
 from datetime import datetime
+import json
 import math
+import os
 
 from flask import (Blueprint, render_template, request,
-                   redirect, url_for, flash, current_app)
+                   redirect, url_for, flash, current_app, send_from_directory)
 
 web_bp = Blueprint("web", __name__)
 BLOCKS_PER_PAGE = 10
+UPLOAD_DIR = "uploads"
 
 
 def _state():
     return current_app.config["NODE_STATE"]
 
 
+def _uploads_dir() -> str:
+    return os.path.join(current_app.root_path, UPLOAD_DIR)
+
+
 def _format_timestamp(timestamp: float) -> str:
-    """Convert a Unix timestamp into a readable local datetime string.
-
-    Args:
-        timestamp: Unix timestamp as a float.
-
-    Returns:
-        A readable datetime string. If formatting fails, returns the raw value
-        as a string so the explorer page does not crash.
-    """
+    """Convert a Unix timestamp into a readable local datetime string."""
     try:
         ts = float(timestamp)
         if ts == 0.0:
@@ -49,20 +49,73 @@ def _format_timestamp(timestamp: float) -> str:
 
 
 def _block_to_view(block):
-    """Build a template-friendly block dictionary.
-
-    Args:
-        block: Block object from the blockchain layer.
-
-    Returns:
-        Dictionary containing original block fields plus timestamp_display.
-    """
+    """Build a template-friendly block dictionary."""
     if hasattr(block, "to_dict"):
         data = block.to_dict()
     else:
         data = dict(block)
     data["timestamp_display"] = _format_timestamp(data.get("timestamp"))
     return data
+
+
+def _get_register_tx(device_id: str, chain) -> dict | None:
+    """Find the first REGISTER transaction dict for a given device_id."""
+    register_types = {"REGISTER", "REGISTER_DEVICE"}
+    for tx in chain.get_all_transactions():
+        tx_type = tx.get("tx_type") if isinstance(tx, dict) else getattr(tx, "tx_type", None)
+        if tx_type not in register_types:
+            continue
+        payload = tx.get("payload") if isinstance(tx, dict) else getattr(tx, "payload", None)
+        if isinstance(payload, dict) and payload.get("device_id") == device_id:
+            if isinstance(tx, dict):
+                return tx
+            if hasattr(tx, "to_dict"):
+                return tx.to_dict()
+    return None
+
+
+def _device_already_registered(device_id: str, chain, mempool) -> bool:
+    """Return True if device_id already has a REGISTER tx on chain OR in mempool."""
+    register_types = {"REGISTER", "REGISTER_DEVICE"}
+
+    # Check mined blocks
+    for tx in chain.get_all_transactions():
+        tx_type = tx.get("tx_type") if isinstance(tx, dict) else getattr(tx, "tx_type", None)
+        if tx_type not in register_types:
+            continue
+        payload = tx.get("payload") if isinstance(tx, dict) else getattr(tx, "payload", None)
+        if isinstance(payload, dict) and payload.get("device_id") == device_id:
+            return True
+
+    # Check pending mempool
+    for tx in mempool.all_transactions():
+        tx_type = getattr(tx, "tx_type", None)
+        payload = getattr(tx, "payload", None)
+        if tx_type in register_types and isinstance(payload, dict):
+            if payload.get("device_id") == device_id:
+                return True
+
+    return False
+
+
+def _get_block_index_for_tx(tx_id: str, chain) -> int | None:
+    """Return the block index that contains the transaction with the given tx_id."""
+    for block in chain.get_all_blocks():
+        txs = (block.get("transactions", []) if isinstance(block, dict)
+               else getattr(block, "transactions", []))
+        for tx in txs:
+            t_id = tx.get("tx_id") if isinstance(tx, dict) else getattr(tx, "tx_id", None)
+            if t_id == tx_id:
+                return (block.get("index") if isinstance(block, dict)
+                        else getattr(block, "index", None))
+    return None
+
+
+# ── Serve uploaded images ──────────────────────────────────
+
+@web_bp.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(_uploads_dir(), filename)
 
 
 # ── Home ──────────────────────────────────────────────────
@@ -86,9 +139,21 @@ def index():
 def register():
     state = _state()
     if request.method == "POST":
+        # Block duplicate registration for the same device_id
+        if _device_already_registered(
+            state["wallet"].device_id, state["chain"], state["mempool"]
+        ):
+            flash(
+                "This device is already registered (found on-chain or in mempool). "
+                "No duplicate registration needed.",
+                "warning",
+            )
+            return redirect(url_for("web.register"))
+
         metadata = {
-            "model": request.form.get("model", ""),
-            "serial": request.form.get("serial", ""),
+            "device_name": request.form.get("device_name", ""),
+            "serial":      request.form.get("serial", ""),
+            "user_agent":  request.form.get("user_agent", ""),
         }
         try:
             from application.device import register_device
@@ -118,7 +183,27 @@ def capture():
             return redirect(url_for("web.capture"))
         try:
             from application.capture import record_capture
-            tx = record_capture(state["wallet"], file.read(), state["mempool"], location)
+            from application.image_hash import compute_image_hash
+            image_data = file.read()
+            original_filename = file.filename or "capture.jpg"
+            tx = record_capture(
+                state["wallet"], image_data, state["mempool"], location, state["chain"]
+            )
+            # Save original image locally as uploads/<image_hash>.<ext>
+            image_hash = compute_image_hash(image_data)
+            ext = os.path.splitext(original_filename)[1].lower() or ".jpg"
+            uploads = _uploads_dir()
+            os.makedirs(uploads, exist_ok=True)
+            dest = os.path.join(uploads, f"{image_hash}{ext}")
+            if not os.path.exists(dest):
+                with open(dest, "wb") as f_out:
+                    f_out.write(image_data)
+            # Save capture metadata (source: camera or upload)
+            meta_dest = os.path.join(uploads, f"{image_hash}.meta.json")
+            if not os.path.exists(meta_dest):
+                capture_source = request.form.get("capture_source", "upload")
+                with open(meta_dest, "w", encoding="utf-8") as mf:
+                    json.dump({"capture_source": capture_source}, mf)
             flash(f"Capture recorded. TX ID: {tx.tx_id[:16]}...", "success")
         except Exception as e:
             flash(f"Capture failed: {e}", "danger")
@@ -133,6 +218,16 @@ def capture():
 def verify():
     state = _state()
     detail = None
+    # Always pass all extra keys so templates never see UndefinedError
+    extra = {
+        "block_index":       None,
+        "device_name":       None,
+        "image_file":        None,
+        "sender_display":    None,
+        "timestamp_display": None,
+        "capture_source":    None,
+    }
+
     if request.method == "POST":
         file = request.files.get("image")
         if not file:
@@ -141,10 +236,38 @@ def verify():
         try:
             from application.verify import verify_image
             detail = verify_image(file.read(), state["chain"])
+
+            if detail.result.value == "AUTHENTIC" and detail.matched_tx_id:
+                extra["block_index"] = _get_block_index_for_tx(
+                    detail.matched_tx_id, state["chain"]
+                )
+                if detail.device_id:
+                    reg_tx = _get_register_tx(detail.device_id, state["chain"])
+                    if reg_tx:
+                        meta = (reg_tx.get("payload") or {}).get("metadata") or {}
+                        extra["device_name"] = (
+                            meta.get("device_name") or meta.get("model") or "Unknown"
+                        )
+                uploads = _uploads_dir()
+                for ext_try in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
+                    if os.path.exists(os.path.join(uploads, f"{detail.image_hash}{ext_try}")):
+                        extra["image_file"] = f"{detail.image_hash}{ext_try}"
+                        break
+                if detail.capture and detail.capture.get("sender"):
+                    sender = detail.capture["sender"]
+                    extra["sender_display"] = f"{sender[:8]}...{sender[-4:]}"
+                if detail.timestamp:
+                    extra["timestamp_display"] = _format_timestamp(detail.timestamp)
+                # Load capture metadata (source: camera or upload)
+                meta_path = os.path.join(uploads, f"{detail.image_hash}.meta.json")
+                if os.path.exists(meta_path):
+                    with open(meta_path, encoding="utf-8") as mf:
+                        meta = json.load(mf)
+                    extra["capture_source"] = meta.get("capture_source", "upload")
         except Exception as e:
             flash(f"Verification failed: {e}", "danger")
 
-    return render_template("verify.html", detail=detail)
+    return render_template("verify.html", detail=detail, **extra)
 
 
 # ── Endorsement ───────────────────────────────────────────
@@ -159,13 +282,16 @@ def endorse():
             return redirect(url_for("web.endorse"))
         try:
             from application.endorse import endorse_capture
-            tx = endorse_capture(state["wallet"], target_tx_id, state["mempool"])
+            tx = endorse_capture(
+                state["wallet"], target_tx_id, state["mempool"], state["chain"]
+            )
             flash(f"Endorsement submitted. TX ID: {tx.tx_id[:16]}...", "success")
         except Exception as e:
             flash(f"Endorsement failed: {e}", "danger")
         return redirect(url_for("web.endorse"))
 
-    return render_template("endorse.html")
+    prefill_tx_id = request.args.get("tx_id", "").strip()
+    return render_template("endorse.html", prefill_tx_id=prefill_tx_id)
 
 
 # ── Block explorer ────────────────────────────────────────

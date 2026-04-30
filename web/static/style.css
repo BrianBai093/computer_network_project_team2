@@ -165,3 +165,81 @@ h3 { margin: 1rem 0 0.5rem; }
 .tx-type.revoke   { background: #f8d7da; color: #58151c; }
 
 code { font-family: monospace; }
+
+/* ── Pagination ──────────────────────────────────────── */
+.pagination {
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+.pagination a { color: #1a1a2e; font-weight: bold; }
+
+/* ── Card ────────────────────────────────────────────── */
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 1.25rem;
+  margin-bottom: 1.25rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* ── Small button ────────────────────────────────────── */
+.btn-sm {
+  padding: 0.2rem 0.6rem;
+  font-size: 0.8rem;
+  border-radius: 4px;
+}
+.endorse-btn {
+  background: #fff3cd;
+  color: #664d03;
+  border-color: #ffc107;
+  margin-left: 0.5rem;
+}
+.endorse-btn:hover { background: #ffe69c; }
+
+/* ── Pre-filled (read-only) input ────────────────────── */
+.prefilled-input {
+  background: #f8f9fa;
+  color: #555;
+  cursor: default;
+}
+
+/* ── Camera section ──────────────────────────────────── */
+.camera-section h3 { margin-bottom: 0.6rem; }
+
+/* ── Register preview "detecting" placeholder ────────── */
+.detecting { color: #999; font-style: italic; }
+
+/* ── Authentication card ─────────────────────────────── */
+.auth-card {
+  margin-top: 1.5rem;
+  background: #fff;
+  border-radius: 8px;
+  border-left: 5px solid #28a745;
+  padding: 1.25rem;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.1);
+}
+.auth-card-header { margin-bottom: 0.5rem; }
+.auth-badge {
+  display: inline-block;
+  padding: 0.3rem 0.9rem;
+  border-radius: 20px;
+  font-weight: bold;
+  font-size: 1rem;
+}
+.auth-authentic {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+.auth-original-image {
+  margin-top: 1rem;
+}
+.auth-original-image img {
+  max-width: 480px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ddd;
+  margin-top: 0.4rem;
+}
