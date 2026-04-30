@@ -12,7 +12,7 @@ Main functions:
 import threading
 import time
 
-from config import DIFFICULTY_BITS, BLOCK_INTERVAL, MINING_REWARD
+from config import DIFFICULTY_BITS, BLOCK_INTERVAL, MINING_REWARD, MAX_NONCE
 from blockchain.block import Block
 from blockchain.transaction import Transaction
 
@@ -45,27 +45,32 @@ def mine_block(
     coinbase_tx = Transaction.make_coinbase(miner_pubkey, MINING_REWARD)
     transactions = [coinbase_tx] + list(transactions)
 
-    nonce     = 0
     timestamp = time.time()
 
+    candidate = Block(
+        index         = previous_block.index + 1,
+        previous_hash = previous_block.hash,
+        transactions  = transactions,
+        timestamp     = timestamp,
+        nonce         = 0,
+        miner         = miner_pubkey,
+    )
+
+    nonce = 0
     while True:
         if stop_event and stop_event.is_set():
             return None
 
-        candidate = Block(
-            index         = previous_block.index + 1,
-            previous_hash = previous_block.hash,
-            transactions  = transactions,
-            timestamp     = timestamp,
-            nonce         = nonce,
-            miner         = miner_pubkey,
-        )
-        candidate.hash = candidate.compute_hash()
+        candidate.nonce = nonce
+        candidate.hash  = candidate.compute_hash()
 
         if _meets_difficulty(candidate.hash, difficulty):
             return candidate
 
         nonce += 1
+        if nonce > MAX_NONCE:          
+            nonce = 0
+            candidate.timestamp = time.time()   
 
 
 def adjust_difficulty(

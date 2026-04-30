@@ -16,34 +16,36 @@ from config import DIFFICULTY_BITS, GENESIS_HASH, TX_COINBASE, TX_REGISTER, TX_R
 from application.crypto_utils import verify
 from blockchain.block import Block
 from blockchain.transaction import Transaction
+from blockchain.mining import _meets_difficulty
 
 
-def _meets_difficulty(block_hash: str, bits: int) -> bool:
-    """Check whether the block hash has a sufficient number of leading zero bits."""
-    prefix_zeros = bits // 4          # Each hex character = 4 bits
-    return block_hash.startswith("0" * prefix_zeros)
 
 
 class Chain:
-    def __init__(self):
-        self._lock  = threading.Lock()
-        self._chain: list[Block] = []
-        self._create_genesis()
+
+    def __init__(self, skip_genesis: bool = False):
+        self._lock = threading.RLock()
+        self._chain = []
+        if not skip_genesis:
+            self._create_genesis()
 
     # ── Read-only properties ──────────────────────────────────────────────────
 
     @property
     def height(self) -> int:
-        return len(self._chain)
+        with self._lock:
+            return len(self._chain)
 
     @property
     def last_block(self) -> Block:
-        return self._chain[-1]
+        with self._lock:
+            return self._chain[-1]
 
     def get_block(self, index: int) -> Block | None:
-        if 0 <= index < len(self._chain):
-            return self._chain[index]
-        return None
+        with self._lock:
+            if 0 <= index < len(self._chain):
+                return self._chain[index]
+            return None
 
     def get_all_blocks(self) -> list[Block]:
         with self._lock:
@@ -81,46 +83,61 @@ class Chain:
           4. hash meets the difficulty target
           5. merkle_root is correct
         """
-        last = self.last_block
+        with self._lock:
+            last = self.last_block
 
-        if block.index != last.index + 1:
-            return False
-        if block.previous_hash != last.hash:
-            return False
-        if block.hash != block.compute_hash():
-            return False
-        if not _meets_difficulty(block.hash, difficulty):
-            return False
-
-        from blockchain.merkle import merkle_root
-        expected_mr = merkle_root([tx.tx_id for tx in block.transactions])
-        if block.merkle_root != expected_mr:
-            return False
-
-        # 6. Validate coinbase structure (non-genesis blocks)
-        if block.index > 0:
-            if not block.transactions or block.transactions[0].tx_type != TX_COINBASE:
+            if block.index != last.index + 1:
                 return False
-            for tx in block.transactions[1:]:
+            if block.previous_hash != last.hash:
+                return False
+            if block.hash != block.compute_hash():
+                return False
+            if not _meets_difficulty(block.hash, difficulty):
+                return False
+
+            from blockchain.merkle import merkle_root
+            expected_mr = merkle_root([tx.tx_id for tx in block.transactions])
+            if block.merkle_root != expected_mr:
+                return False
+
+            # 6. Validate coinbase structure (non-genesis blocks)
+            if block.index > 0:
+                if not block.transactions or block.transactions[0].tx_type != TX_COINBASE:
+                    return False
+                for tx in block.transactions[1:]:
+                    if tx.tx_type == TX_COINBASE:
+                        return False
+
+            # 7. Verify transaction signatures
+            for tx in block.transactions:
                 if tx.tx_type == TX_COINBASE:
+                    continue
+                if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
                     return False
+                    
+            # 8. Validate REVOKE authorization
+            for tx in block.transactions:
+                if tx.tx_type == TX_REVOKE:
+                    target_device_id = tx.payload.get("target_device_id", "")
+                    register_tx = self._find_register_for_device(target_device_id)
+                    if register_tx is None or tx.sender != register_tx.sender:
+                        return False
 
-        # 7. Verify transaction signatures
-        for tx in block.transactions:
-            if tx.tx_type == TX_COINBASE:
-                continue
-            if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
-                return False
+            # 9. Validate REGISTER uniqueness (a device can only register once)
+            new_register_devices: set[str] = set()
+            for tx in block.transactions:
+                if tx.tx_type == TX_REGISTER:
+                    device_id = tx.payload.get("device_id", "")
+                    # Reject if device already registered on chain
+                    if self._find_register_for_device(device_id) is not None:
+                        return False
+                    # Reject if same block contains two REGISTERs for the same device
+                    if device_id in new_register_devices:
+                        return False
+                    new_register_devices.add(device_id)
 
-        # 8. Validate REVOKE authorization
-        for tx in block.transactions:
-            if tx.tx_type == TX_REVOKE:
-                target_device_id = tx.payload.get("target_device_id", "")
-                register_tx = self._find_register_for_device(target_device_id)
-                if register_tx is None or tx.sender != register_tx.sender:
-                    return False
+            return True
 
-        return True
 
     def is_valid_chain(self, chain: list[Block], difficulty: int = DIFFICULTY_BITS) -> bool:
         """Validate a complete chain (starting from the genesis block)."""
@@ -130,6 +147,9 @@ class Chain:
         # Validate genesis block
         genesis = chain[0]
         if genesis.index != 0 or genesis.previous_hash != GENESIS_HASH:
+            return False
+        
+        if genesis.hash != genesis.compute_hash():
             return False
 
         # Build register map for REVOKE validation during chain scan
@@ -159,12 +179,15 @@ class Chain:
                     continue
                 if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
                     return False
-
+                    
             # REVOKE authorization
             for tx in curr.transactions:
                 if tx.tx_type == TX_REGISTER:
                     device_id = tx.payload.get("device_id", "")
                     if device_id:
+                        # Reject duplicate REGISTER
+                        if device_id in register_map:
+                            return False
                         register_map[device_id] = tx
                 if tx.tx_type == TX_REVOKE:
                     target_device_id = tx.payload.get("target_device_id", "")
@@ -208,10 +231,10 @@ class Chain:
     def to_list(self) -> list[dict]:
         with self._lock:
             return [blk.to_dict() for blk in self._chain]
-
+        
+    
     @classmethod
     def from_list(cls, data: list[dict]) -> "Chain":
-        chain_obj = cls.__new__(cls)
-        chain_obj._lock  = threading.Lock()
+        chain_obj = cls(skip_genesis=True)
         chain_obj._chain = [Block.from_dict(d) for d in data]
         return chain_obj

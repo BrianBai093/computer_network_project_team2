@@ -132,27 +132,64 @@ class TestChain:
 
 class TestMempool:
     def test_add_and_size(self):
-        mp = Mempool()
+        mp = Mempool(start_evictor=False)
         tx = Transaction.make_register("pub", "dev")
         assert mp.add(tx) is True
         assert mp.size() == 1
 
     def test_deduplication(self):
-        mp = Mempool()
+        mp = Mempool(start_evictor=False)
         tx = Transaction.make_register("pub", "dev")
         mp.add(tx)
         assert mp.add(tx) is False
         assert mp.size() == 1
 
     def test_get_pending_limit(self):
-        mp = Mempool()
+        mp = Mempool(start_evictor=False)
         for i in range(5):
             mp.add(Transaction.make_register(f"pub{i}", f"dev{i}"))
         assert len(mp.get_pending(limit=3)) == 3
 
     def test_remove(self):
-        mp = Mempool()
+        mp = Mempool(start_evictor=False)
         tx = Transaction.make_register("pub", "dev")
         mp.add(tx)
         mp.remove([tx.tx_id])
         assert mp.size() == 0
+    
+    def test_max_size(self, monkeypatch):
+        """A full mempool refuses new transactions."""
+        import blockchain.mempool as m
+        monkeypatch.setattr(m, "MAX_MEMPOOL_SIZE", 3)
+
+        mp = Mempool(start_evictor=False)
+        for i in range(3):
+            assert mp.add(Transaction.make_register(f"pub{i}", f"dev{i}")) is True
+        overflow = Transaction.make_register("pubX", "devX")
+        assert mp.add(overflow) is False
+        assert mp.size() == 3
+
+    def test_evict_expired(self):
+        """Transactions older than TTL are removed by _evict_expired()."""
+        import time
+        mp = Mempool(start_evictor=False)
+        tx = Transaction.make_register("pub", "dev")
+        mp.add(tx)
+        mp._entered_at[tx.tx_id] = time.time() - 999_999
+        assert mp._evict_expired() == 1
+        assert mp.size() == 0
+
+    def test_remove_cleans_entered_at(self):
+        """remove() must keep _pool and _entered_at in sync."""
+        mp = Mempool(start_evictor=False)
+        tx = Transaction.make_register("pub", "dev")
+        mp.add(tx)
+        mp.remove([tx.tx_id])
+        assert tx.tx_id not in mp._pool
+        assert tx.tx_id not in mp._entered_at
+
+    def test_shutdown_is_idempotent(self):
+        """shutdown() can be called multiple times safely."""
+        mp = Mempool()
+        mp.shutdown()
+        mp.shutdown()

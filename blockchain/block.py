@@ -25,11 +25,11 @@ from blockchain.merkle import merkle_root
 class Block:
     index:         int
     previous_hash: str
-    transactions:  list[Transaction] = field(default_factory=list)
     timestamp:     float = field(default_factory=time.time)
+    transactions:  list[Transaction] = field(default_factory=list)
+    merkle_root:   str   = ""
     nonce:         int   = 0
     miner:         str   = ""
-    merkle_root:   str   = ""
     hash:          str   = ""
 
     def __post_init__(self):

@@ -5,6 +5,7 @@ DIFFICULTY_BITS = 4            # PoW initial difficulty (number of leading zero 
 BLOCK_INTERVAL  = 10           # Target block interval (seconds)
 MAX_BLOCK_TXS   = 100          # Maximum transactions per block
 GENESIS_HASH    = "0" * 64     # previous_hash for the genesis block
+MAX_NONCE = 2**32   # Maximum nonce value before wrapping around (to prevent infinite loops in mining)
 
 # ── Network parameters ───────────────────────────────────────────────────────
 TRACKER_DEFAULT_PORT = 5000
@@ -25,3 +26,8 @@ TX_ENDORSE   = "ENDORSE"    # Endorsement
 TX_REVOKE    = "REVOKE"     # Revocation
 TX_COINBASE  = "COINBASE"   # Mining reward (reserved; implement in Member A's layer)
 MINING_REWARD = 1           # Coinbase reward per block (symbolic)
+
+# Mempool
+MAX_MEMPOOL_SIZE       = 10000   # max number of pending transactions
+MEMPOOL_TX_TTL         = 3600    # seconds; transactions older than this are evicted
+MEMPOOL_EVICT_INTERVAL = 60      # seconds; how often the evictor wakes up
