@@ -40,7 +40,10 @@ def _format_timestamp(timestamp: float) -> str:
         as a string so the explorer page does not crash.
     """
     try:
-        return datetime.fromtimestamp(float(timestamp)).strftime("%Y-%m-%d %H:%M:%S")
+        ts = float(timestamp)
+        if ts == 0.0:
+            return "Genesis"
+        return datetime.fromtimestamp(ts).strftime("%Y-%m-%d %H:%M:%S")
     except (TypeError, ValueError, OSError):
         return str(timestamp)
 
