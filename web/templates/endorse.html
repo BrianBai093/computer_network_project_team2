@@ -2,28 +2,51 @@
 {% block title %}Endorse{% endblock %}
 
 {% block content %}
-<h1>Endorse a Photo</h1>
-<p>Endorse an on-chain CAPTURE transaction to confirm its authenticity.</p>
+<h1><i data-lucide="badge-check"></i>Endorse a Photo</h1>
+<p style="color:#64748B;margin-bottom:1.25rem">Endorse an on-chain CAPTURE transaction to confirm its authenticity.</p>
+
+<h2 style="font-size:1.15rem;margin-bottom:0.75rem;color:#374151">
+  <i data-lucide="images" style="width:18px;height:18px;color:#4F46E5;vertical-align:middle"></i>
+  On-chain Captures
+</h2>
+
+<div class="gallery-search">
+  <i data-lucide="search"></i>
+  <input type="text" id="gallerySearch" class="form-control"
+         placeholder="Search by device name or TX ID…">
+</div>
+
+<div class="capture-gallery" id="captureGallery">
+  <div class="gallery-loading">Loading captures…</div>
+</div>
+
+<h2 style="font-size:1.15rem;margin-bottom:0.75rem;margin-top:1.5rem;color:#374151">
+  <i data-lucide="pen-line" style="width:18px;height:18px;color:#4F46E5;vertical-align:middle"></i>
+  Manual Entry
+</h2>
 
 <form method="POST">
   <div class="form-group">
-    <label>Target CAPTURE Transaction ID</label>
+    <label><i data-lucide="hash"></i>Target CAPTURE Transaction ID</label>
     {% if prefill_tx_id %}
-      <!-- TX ID pre-filled from Explorer; shown as read-only -->
-      <input type="text" name="target_tx_id" value="{{ prefill_tx_id }}"
+      <input type="text" name="target_tx_id" id="endorseTxId" value="{{ prefill_tx_id }}"
              readonly class="form-control prefilled-input">
       <p class="hint">TX ID was filled automatically from the Block Explorer (read-only).</p>
     {% else %}
-      <input type="text" name="target_tx_id" required
+      <input type="text" name="target_tx_id" id="endorseTxId" required
              placeholder="64-character hex transaction ID" class="form-control">
     {% endif %}
   </div>
 
-  <button type="submit" class="btn btn-primary">Submit Endorsement</button>
-  {% if prefill_tx_id %}
-    <a href="{{ url_for('web.endorse') }}" class="btn">Enter TX ID manually</a>
-  {% endif %}
+  <div style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+    <button type="submit" class="btn btn-primary">
+      <i data-lucide="send"></i>Submit Endorsement
+    </button>
+    {% if prefill_tx_id %}
+      <a href="{{ url_for('web.endorse') }}" class="btn">Clear</a>
+    {% endif %}
+  </div>
 </form>
 
-<p class="hint">The endorsement transaction will enter the mempool and wait to be mined into a block.</p>
+<p class="hint" style="margin-top:1rem">The endorsement transaction will enter the mempool and wait to be mined into a block.</p>
 {% endblock %}

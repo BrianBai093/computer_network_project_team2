@@ -4,22 +4,40 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}TrueShot{% endblock %} — P2P Photo Authentication</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+  {% if not device_registered %}
+  <div class="register-banner">
+    <i data-lucide="alert-circle"></i>
+    Your device is not registered on the network.
+    <a href="{{ url_for('web.register') }}">Register now</a> to capture and endorse photos.
+  </div>
+  {% endif %}
+
   <nav class="navbar">
-    <a class="brand" href="{{ url_for('web.index') }}">TrueShot</a>
+    <a class="brand" href="{{ url_for('web.index') }}">
+      <i data-lucide="camera"></i>TrueShot
+    </a>
     <ul>
-      <li><a href="{{ url_for('web.register') }}">Register Device</a></li>
-      <li><a href="{{ url_for('web.capture') }}">Record Capture</a></li>
-      <li><a href="{{ url_for('web.verify') }}">Verify Image</a></li>
-      <li><a href="{{ url_for('web.endorse') }}">Endorse</a></li>
-      <li><a href="{{ url_for('web.explorer') }}">Block Explorer</a></li>
-      <li><a href="{{ url_for('web.visualizer') }}">Visualizer</a></li>
+      {% if device_registered %}
+      <li><a href="{{ url_for('web.register') }}" class="nav-registered">
+        <i data-lucide="check-circle"></i>My Device</a></li>
+      {% else %}
+      <li><a href="{{ url_for('web.register') }}" class="nav-highlight">
+        <i data-lucide="smartphone"></i>Register Device</a></li>
+      {% endif %}
+      <li><a href="{{ url_for('web.capture') }}"><i data-lucide="camera"></i>Record Capture</a></li>
+      <li><a href="{{ url_for('web.verify') }}"><i data-lucide="shield-check"></i>Verify Image</a></li>
+      <li><a href="{{ url_for('web.endorse') }}"><i data-lucide="badge-check"></i>Endorse</a></li>
+      <li><a href="{{ url_for('web.explorer') }}"><i data-lucide="blocks"></i>Block Explorer</a></li>
+      <li><a href="{{ url_for('web.visualizer') }}"><i data-lucide="activity"></i>Visualizer</a></li>
     </ul>
   </nav>
 
-  <main class="container">
+  <main class="container page-enter">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
         <div class="alert alert-{{ category }}">{{ message }}</div>
@@ -29,6 +47,11 @@
     {% block content %}{% endblock %}
   </main>
 
+  <footer class="footer">
+    TrueShot &mdash; P2P Photo Authentication &nbsp;&bull;&nbsp; Built with blockchain technology
+  </footer>
+
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

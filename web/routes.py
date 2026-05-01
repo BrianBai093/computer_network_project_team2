@@ -24,7 +24,7 @@ import os
 
 from flask import (Blueprint, render_template, request,
                    redirect, url_for, flash, current_app, send_from_directory,
-                   Response, stream_with_context)
+                   Response, stream_with_context, g, jsonify)
 
 web_bp = Blueprint("web", __name__)
 BLOCKS_PER_PAGE = 10
@@ -100,6 +100,26 @@ def _device_already_registered(device_id: str, chain, mempool) -> bool:
     return False
 
 
+def _is_device_registered(state) -> bool:
+    """Return True if this node's wallet device is registered on-chain or in mempool."""
+    return _device_already_registered(
+        state["wallet"].device_id, state["chain"], state["mempool"]
+    )
+
+
+@web_bp.before_request
+def _check_registration():
+    try:
+        g.device_registered = _is_device_registered(_state())
+    except Exception:
+        g.device_registered = False
+
+
+@web_bp.context_processor
+def _inject_device_status():
+    return {"device_registered": getattr(g, "device_registered", False)}
+
+
 def _get_block_index_for_tx(tx_id: str, chain) -> int | None:
     """Return the block index that contains the transaction with the given tx_id."""
     for block in chain.get_all_blocks():
@@ -146,11 +166,10 @@ def register():
             state["wallet"].device_id, state["chain"], state["mempool"]
         ):
             flash(
-                "This device is already registered (found on-chain or in mempool). "
-                "No duplicate registration needed.",
-                "warning",
+                "Welcome back! Your device is already active on the network.",
+                "success",
             )
-            return redirect(url_for("web.register"))
+            return redirect(url_for("web.index"))
 
         metadata = {
             "device_name": request.form.get("device_name", ""),
@@ -178,6 +197,9 @@ def register():
 def capture():
     state = _state()
     if request.method == "POST":
+        if not g.device_registered:
+            flash("Please register your device before recording a capture.", "warning")
+            return redirect(url_for("web.register"))
         file = request.files.get("image")
         location = request.form.get("location", "")
         if not file:
@@ -239,6 +261,14 @@ def verify():
             from application.verify import verify_image
             detail = verify_image(file.read(), state["chain"])
 
+            # Look up stored image for any result type
+            uploads = _uploads_dir()
+            if detail.image_hash:
+                for ext_try in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
+                    if os.path.exists(os.path.join(uploads, f"{detail.image_hash}{ext_try}")):
+                        extra["image_file"] = f"{detail.image_hash}{ext_try}"
+                        break
+
             if detail.result.value == "AUTHENTIC" and detail.matched_tx_id:
                 extra["block_index"] = _get_block_index_for_tx(
                     detail.matched_tx_id, state["chain"]
@@ -250,11 +280,6 @@ def verify():
                         extra["device_name"] = (
                             meta.get("device_name") or meta.get("model") or "Unknown"
                         )
-                uploads = _uploads_dir()
-                for ext_try in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
-                    if os.path.exists(os.path.join(uploads, f"{detail.image_hash}{ext_try}")):
-                        extra["image_file"] = f"{detail.image_hash}{ext_try}"
-                        break
                 if detail.capture and detail.capture.get("sender"):
                     sender = detail.capture["sender"]
                     extra["sender_display"] = f"{sender[:8]}...{sender[-4:]}"
@@ -278,6 +303,9 @@ def verify():
 def endorse():
     state = _state()
     if request.method == "POST":
+        if not g.device_registered:
+            flash("Please register your device before endorsing.", "warning")
+            return redirect(url_for("web.register"))
         target_tx_id = request.form.get("target_tx_id", "").strip()
         if not target_tx_id:
             flash("Please enter a target transaction ID.", "warning")
@@ -294,6 +322,53 @@ def endorse():
 
     prefill_tx_id = request.args.get("tx_id", "").strip()
     return render_template("endorse.html", prefill_tx_id=prefill_tx_id)
+
+
+# ── Captures API ─────────────────────────────────────────
+
+@web_bp.route("/api/captures")
+def api_captures():
+    """Return all CAPTURE transactions with image URLs and device names as JSON."""
+    state = _state()
+    chain = state["chain"]
+    uploads = _uploads_dir()
+    captures = []
+    for tx in chain.get_all_transactions():
+        tx_type = tx.get("tx_type") if isinstance(tx, dict) else getattr(tx, "tx_type", None)
+        if tx_type != "CAPTURE":
+            continue
+        payload = tx.get("payload") if isinstance(tx, dict) else getattr(tx, "payload", None)
+        tx_id = tx.get("tx_id") if isinstance(tx, dict) else getattr(tx, "tx_id", None)
+        if not payload or not tx_id:
+            continue
+        device_id = payload.get("device_id")
+        image_hash = payload.get("image_hash")
+
+        image_file = None
+        if image_hash:
+            for ext_try in (".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp"):
+                if os.path.exists(os.path.join(uploads, f"{image_hash}{ext_try}")):
+                    image_file = f"{image_hash}{ext_try}"
+                    break
+
+        device_name = None
+        if device_id:
+            reg_tx = _get_register_tx(device_id, chain)
+            if reg_tx:
+                meta = (reg_tx.get("payload") or {}).get("metadata") or {}
+                device_name = meta.get("device_name") or meta.get("model") or "Unknown"
+
+        captures.append({
+            "tx_id": tx_id,
+            "device_id": device_id,
+            "device_name": device_name,
+            "image_hash": image_hash,
+            "image_file": image_file,
+            "location": payload.get("location"),
+        })
+
+    captures.reverse()  # newest first
+    return jsonify(captures)
 
 
 # ── Block explorer ────────────────────────────────────────

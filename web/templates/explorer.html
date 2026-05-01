@@ -2,11 +2,11 @@
 {% block title %}Block Explorer{% endblock %}
 
 {% block content %}
-<h1>Block Explorer</h1>
+<h1><i data-lucide="blocks"></i>Block Explorer</h1>
 
 {% if selected %}
-<div class="block-detail">
-  <h2>Block #{{ selected.index }}</h2>
+<div class="block-detail card">
+  <h2 style="margin-top:0">Block #{{ selected.index }}</h2>
   <table class="info-table">
     <tr><th>Hash</th>          <td><code>{{ selected.hash }}</code></td></tr>
     <tr><th>Previous Hash</th> <td><code>{{ selected.previous_hash }}</code></td></tr>
@@ -17,18 +17,20 @@
     <tr><th>Transactions</th>  <td>{{ selected.transactions | length }}</td></tr>
   </table>
 
-  <h3>Transaction List</h3>
+  <h3 style="margin-top:1rem">Transaction List</h3>
   {% for tx in selected.transactions %}
   <div class="tx-item">
     <span class="tx-type {{ tx.tx_type.lower() }}">{{ tx.tx_type }}</span>
     <code>{{ tx.tx_id[:32] }}...</code>
     {% if tx.tx_type == "CAPTURE" %}
       <a href="{{ url_for('web.endorse', tx_id=tx.tx_id) }}"
-         class="btn btn-sm endorse-btn">Endorse</a>
+         class="btn btn-sm endorse-btn">
+        <i data-lucide="thumbs-up" style="width:12px;height:12px"></i>Endorse
+      </a>
     {% endif %}
   </div>
   {% else %}
-  <p>(no transactions)</p>
+  <p style="color:#94A3B8;padding:0.5rem 0">(no transactions)</p>
   {% endfor %}
 </div>
 {% endif %}
@@ -53,11 +55,15 @@
 {% if total_pages and total_pages > 1 %}
 <div class="pagination">
   {% if page > 1 %}
-    <a href="{{ url_for('web.explorer', page=page - 1) }}">Previous</a>
+    <a href="{{ url_for('web.explorer', page=page - 1) }}">
+      <i data-lucide="chevron-left" style="width:14px;height:14px"></i>Previous
+    </a>
   {% endif %}
   <span>Page {{ page }} of {{ total_pages }}</span>
   {% if page < total_pages %}
-    <a href="{{ url_for('web.explorer', page=page + 1) }}">Next</a>
+    <a href="{{ url_for('web.explorer', page=page + 1) }}">
+      Next<i data-lucide="chevron-right" style="width:14px;height:14px"></i>
+    </a>
   {% endif %}
 </div>
 {% endif %}
