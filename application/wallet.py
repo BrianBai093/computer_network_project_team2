@@ -56,7 +56,13 @@ class Wallet:
         Raises:
             ValueError: If the file does not contain a usable keypair.
         """
-        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        wallet_path = Path(path)
+        if not wallet_path.exists():
+            wallet = cls.generate()
+            wallet.save(path)
+            return wallet
+
+        data = json.loads(wallet_path.read_text(encoding="utf-8"))
         private_key = _required_string(data, "private_key")
         public_key = _required_string(data, "public_key")
         _validate_keypair(private_key, public_key)

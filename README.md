@@ -1,256 +1,227 @@
-# TrueShot — Design
+# TrueShot
 
-> A P2P blockchain that gives every real photograph a **tamper-evident fingerprint**, so anyone can later verify *where it came from* — even in a world full of AI-generated images.
+Imagine you see a photo online showing a major news event. It looks real. People
+are sharing it, commenting on it, and maybe even making decisions based on it.
 
-<img width="1350" height="1430" alt="image" src="https://github.com/user-attachments/assets/e4c37711-a390-4a15-9c33-c4c266edb881" />
+But here's the problem: with AI and editing tools today, looking real does not
+mean it is real. So the real question is not just, "Does this photo look real?"
+The question is: where did it come from, who signed it, and has it been changed?
 
----
+TrueShot is a peer-to-peer photo provenance prototype. A device signs a photo
+capture, the network records that claim on a small proof-of-work blockchain, and
+anyone can later upload an image to check whether it matches an on-chain record.
 
-## 📌 At a glance
+## Architecture
 
-| | |
+```mermaid
+flowchart TB
+    User["User / Browser"]
+    Web["Web UI<br/>register, capture, verify, endorse"]
+    App["Application Layer<br/>wallets, ECDSA signatures, image hashes"]
+    Chain["Blockchain Layer<br/>transactions, blocks, mempool, PoW"]
+    Peer["Peer Node API<br/>gossip transactions and blocks"]
+    Tracker["Tracker<br/>peer discovery only"]
+    OtherPeers["Other Peer Nodes"]
+
+    User --> Web
+    Web --> App
+    App --> Chain
+    Chain <--> Peer
+    Peer <--> OtherPeers
+    Peer --> Tracker
+    OtherPeers --> Tracker
+```
+
+## How It Works
+
+TrueShot does not try to decide whether the scene inside a photo is true. It
+proves a narrower, cryptographic claim: this image data was signed by this
+device at this time, and the recorded bytes have not changed.
+
+The application layer creates four kinds of signed records:
+
+| Record | Purpose |
 |---|---|
-| **Problem** | AI-generated images are indistinguishable from real photos. Fake images flood every breaking news event. |
-| **Approach** | Prove *origin*, not *realism*. Every photo is signed by its capturing device at the moment of capture and registered on a P2P blockchain. |
-| **Guarantee** | *This image was signed by this device at this time, and has not been altered since.* |
-| **Not a goal** | Judging whether the scene in front of the camera is real. |
+| `REGISTER` | Bind a device ID to a public key. |
+| `CAPTURE` | Record an image SHA-256 hash, pHash, location, and device signature. |
+| `ENDORSE` | Let another device vouch for an existing capture. |
+| `REVOKE` | Mark a device as no longer trusted. |
 
----
+Each peer keeps a local blockchain. New transactions enter the mempool, miners
+pack pending transactions into blocks, and peers gossip accepted transactions
+and blocks to each other. The tracker only helps peers discover each other; it
+does not store the chain.
 
-## 🏛 Three-layer architecture
+Verification uses two image fingerprints:
 
-```
-┌──────────────────────────────────────────────────────────┐
-│  LAYER 3 — APPLICATION                                   │
-│  Four record types + web UI.                             │
-│  Meaning lives here.                                     │
-├──────────────────────────────────────────────────────────┤
-│  LAYER 2 — NETWORK (P2P)                                 │
-│  Peers discover each other via a tracker,                │
-│  then gossip transactions and blocks directly.           │
-├──────────────────────────────────────────────────────────┤
-│  LAYER 1 — LEDGER (Blockchain)                           │
-│  Append-only chain of blocks, bound by hashes,           │
-│  protected by proof-of-work.                             │
-└──────────────────────────────────────────────────────────┘
-```
+| Result | Condition | Meaning |
+|---|---|---|
+| `AUTHENTIC` | SHA-256 exact match | The uploaded image exactly matches a signed capture. |
+| `SUSPICIOUS` | pHash match with changed bytes, or invalid provenance | The image is probably a modified version of a known capture, or the capture record cannot be fully trusted. |
+| `UNKNOWN` | No hash or pHash match | The network has no record for this image. |
 
-**Why three layers?** Each layer defends against a different attack:
+For deeper design notes, see [DESIGN.md](./DESIGN.md).
 
-| Layer | Defends against |
-|-------|----------------|
-| 🧱 **Ledger** | Someone quietly changing the past |
-| 🌐 **Network** | Someone silencing or overruling the rest of the system |
-| 🎯 **Application** | Ambiguity about what the records actually mean |
+## Setup
 
-A forged photo claim would have to defeat **all three** — no single break is enough.
+Use Python 3. Run these commands from the project root:
 
----
-
-## 🧱 Blockchain design
-
-### The four record types
-
-| Record | Who creates it | What it says |
-|--------|---------------|--------------|
-| **`REGISTER_DEVICE`** | A new camera/owner | *"This device ID belongs to this public key."* |
-| **`CAPTURE`** 🎯 | A registered device | *"I captured this image with this hash at this time and place."* |
-| **`ENDORSE`** | A trusted endorser (e.g. a newsroom) | *"I vouch for the authenticity of this existing capture."* |
-| **`COINBASE`** | The system | *"Reward this peer for mining this block."* |
-
-> **Signatures are mandatory** on every non-coinbase record. Without ECDSA signatures, any peer could impersonate any camera — so this is not an optional add-on, it is the basis of the whole guarantee.
-
-### Block structure
-
-```
-┌─────────────────── BLOCK ───────────────────┐
-│                                             │
-│  HEADER                                     │
-│  ├─ index                                   │
-│  ├─ timestamp                               │
-│  ├─ prev_hash  ──► links to previous block  │
-│  ├─ merkle_root ──► fingerprints all txs    │
-│  ├─ nonce      ──► proof-of-work puzzle     │
-│  └─ difficulty                              │
-│                                             │
-│  TRANSACTIONS  (a list of records)          │
-│  ├─ COINBASE (mining reward)                │
-│  ├─ CAPTURE                                 │
-│  ├─ ENDORSE                                 │
-│  └─ ...                                     │
-│                                             │
-│  HASH = SHA-256(header)                     │
-│       must start with N zeros               │
-└─────────────────────────────────────────────┘
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -r requirements.txt pytest
 ```
 
-Each block is linked to the previous one by `prev_hash`, forming an unbroken chain. Any modification to an old block changes its hash, which breaks the link and invalidates every subsequent block.
+## Run Locally
 
-### Creating a block
+Start the tracker in one terminal:
 
-A peer creates a block when **either condition** is met:
-
-- 🔴 the mempool has ≥ N pending transactions, **or**
-- ⏱ a bounded idle time has elapsed with at least one transaction waiting
-
-Creation flow:
-
-```
-take pending txs  →  prepend COINBASE  →  compute Merkle root
-     │
-     ▼
-assemble header  →  search for valid nonce (mining)
-     │
-     ▼
-append to local chain  →  broadcast to peers
+```bash
+python3 run_tracker.py --port 5000
 ```
 
-### Validating a block
+Start one peer in another terminal:
 
-Every incoming block passes a strict **6-layer check** before being accepted. Any failure → reject.
-
-| # | Check | Protects against |
-|---|-------|-----------------|
-| 1 | All fields present | Malformed messages |
-| 2 | `prev_hash` matches local tail | Wrong parent |
-| 3 | `index` = tail.index + 1 | Out-of-order injection |
-| 4 | Hash meets difficulty target | Fake mining |
-| 5 | Recomputed hash matches stored hash | Tampered header |
-| 6 | Recomputed Merkle root matches stored root | Tampered transactions |
-
-Then **every transaction inside** is validated individually — signature verifies, device is registered, no duplicate captures, and so on.
-
-> A blockchain without strict validation is just a distributed database with extra steps. The rigor *is* the point.
-
-### Difficulty adjustment
-
-Difficulty is recomputed every few blocks based on **on-chain timestamps only** — never wall-clock time. If peers used their local clocks, they would compute different difficulties and permanently fork. Grounding adjustment in the chain itself keeps every peer in sync without any coordination.
-
----
-
-## 🌐 P2P protocol
-
-### Topology
-
-```
-                    ┌─────────────┐
-                    │   TRACKER   │   ← discovery only
-                    │ (peer list) │     no chain data
-                    └──────┬──────┘
-                           │
-            register / heartbeat / list
-                           │
-          ┌────────────────┼────────────────┐
-          │                │                │
-     ┌────▼────┐      ┌────▼────┐      ┌────▼────┐
-     │ PEER 1  │◄────►│ PEER 2  │◄────►│ PEER 3  │
-     └─────────┘      └─────────┘      └─────────┘
-                  ▲                ▲
-                  └────────────────┘
-                  direct gossip of
-                  transactions & blocks
+```bash
+python3 run_peer.py --tracker-url http://127.0.0.1:5000 --web-port 8001
 ```
 
-**Key point:** the tracker helps peers *find* each other, but never sees transactions or blocks. If the tracker dies, existing peers keep operating — only *new* peers can't join.
+Open the web UI:
 
-> Bitcoin and Ethereum use the same pattern under the names *DNS seeds* and *bootstrap nodes*.
-
-### Gossip propagation
-
-```
-   Peer A mines a new block
-            │
-            ├──► sends to B, C
-            │       │
-            │       ├─► B validates, applies, forwards to D
-            │       └─► C validates, applies, forwards to D
-            │               │
-            │               └─► D has already seen it, drops silently
+```text
+http://127.0.0.1:8001
 ```
 
-Three rules keep gossip efficient:
+To run a small local network, start more peers on different ports:
 
-1. ✅ Each peer keeps a cache of **seen message hashes**
-2. ✅ A message seen before is **dropped silently** (no broadcast storms)
-3. ✅ A new message is **validated first**, then forwarded — never trust, always verify
-
-### Startup and reconnection
-
-When a peer boots (or rejoins after downtime):
-
-```
-1. Register with tracker → receive peer list
-2. Ask each peer for their chain length
-3. Pick the longest chain → download it
-4. Validate every block from genesis forward
-5. Start mining and listening
+```bash
+python3 run_peer.py --tracker-url http://127.0.0.1:5000 --web-port 8002
+python3 run_peer.py --tracker-url http://127.0.0.1:5000 --web-port 8003
 ```
 
-No manual intervention. No trust. A peer returning from a week-long outage catches up automatically.
+You can also launch one tracker and three peers with:
 
-### Consensus: the longest chain wins
-
-Peers **do not vote** and **do not negotiate**. Each peer follows one rule:
-
-> **Adopt the longest valid chain I've seen.**
-
-Because producing a block costs proof-of-work, the longest chain is the one backed by the most cumulative computation. Temporary disagreements — two peers mining at nearly the same moment — resolve within one or two further blocks.
-
----
-
-## 🎯 Demo application
-
-### Four user workflows
-
-```
-┌─────────────────┐      ┌─────────────────┐
-│  1. REGISTER    │      │  2. CAPTURE     │
-│     DEVICE      │      │     PHOTO       │
-│                 │      │                 │
-│  generate       │      │  upload image   │
-│  keypair        │      │  compute hash   │
-│  submit pubkey  │      │  sign & submit  │
-└─────────────────┘      └─────────────────┘
-
-┌─────────────────┐      ┌─────────────────┐
-│  3. VERIFY      │      │  4. ENDORSE     │
-│     PHOTO       │      │                 │
-│                 │      │  newsroom signs │
-│  upload image   │      │  an existing    │
-│  look up chain  │      │  capture to     │
-│  report result  │      │  vouch for it   │
-└─────────────────┘      └─────────────────┘
+```bash
+python3 demo.py
 ```
 
-### The three verification outcomes
+## Share a Local Demo
 
-When a user uploads a photo to verify, the system returns one of:
+For someone else on the same Wi-Fi or LAN, find your Mac's local IP address:
 
-| Outcome | Condition | Meaning |
-|---------|-----------|---------|
-| ✅ **Verified** | Exact hash match | Registered by device X at time T. Shows full provenance + endorsements. |
-| ⚠️ **Modified** | pHash close, SHA differs | Visually matches a registered photo, but has been altered (recompressed / cropped / edited). |
-| ❌ **Unknown** | No match | No on-chain record. Nothing can be said about origin. |
+```bash
+ipconfig getifaddr en0
+```
 
-The **modified** outcome is the reason we store *both* a strict content hash and a perceptual hash (pHash) — real photos get recompressed and cropped when they travel through social networks, and a plain SHA-only system would lose them.
+If that prints `192.168.1.23`, share this peer UI link:
 
-### Demonstration scenarios
+```text
+http://192.168.1.23:8001
+```
 
-| # | Scenario | What it shows |
-|---|----------|---------------|
-| 1 | **Real vs. AI-generated** | Two visually similar images. One verifies ✅. The other returns ❌. |
-| 2 | **Tamper detection** | Flip one pixel of a registered photo. Returns ⚠️ *"modified"*. |
-| 3 | **Resilience** | Kill a peer mid-demo. Others continue. Killed peer auto-syncs on restart. |
-| 4 | **Insurance claim (B2B skin)** | Same protocol, different UI. Shows that TrueShot is infrastructure, not just a consumer app. |
+The Flask servers already listen on `0.0.0.0`, so other devices on the same
+network can open the UI as long as your firewall allows incoming connections.
 
----
+For a public internet link, expose the peer UI port with a tunnel tool. For
+example, if you already have ngrok installed:
 
-## 🚫 What this design does not attempt
+```bash
+ngrok http 8001
+```
 
-TrueShot does **not** prove that the scene in front of a camera is real. A registered device pointed at a screen showing an AI image will produce a cryptographically valid record.
+Then share the HTTPS forwarding URL printed by ngrok.
 
-What TrueShot **does** prove is **custody**:
+## Basic Workflow
 
-> This specific image data was signed by this specific device at this specific moment, and has not been altered since.
+1. Open a peer UI, for example `http://127.0.0.1:8001`.
+2. Register the device.
+3. Capture a photo by uploading an image.
+4. Wait for the peer to mine the pending transaction into a block.
+5. Verify the original image or a modified copy.
+6. Inspect blocks and transactions in the explorer.
 
-This narrower claim is what cryptography can actually deliver — and it is the foundation any credible broader claim must rest on.
+## Test
+
+Run all tests:
+
+```bash
+python3 -m pytest tests -v
+```
+
+Run one test file:
+
+```bash
+python3 -m pytest tests/test_blockchain.py -v
+python3 -m pytest tests/test_network.py -v
+python3 -m pytest tests/test_application.py -v
+python3 -m pytest tests/test_web.py -v
+```
+
+## Attack Demos
+
+The attack scripts are for authorized local testing of this prototype. They are
+meant to demonstrate security limits in the current design, not to be used
+against systems you do not own.
+
+Run commands from the project root after starting a tracker and at least one
+peer.
+
+Full chain replacement:
+
+```bash
+python3 attacks/attack_fake_chain.py \
+  --tracker http://127.0.0.1:5000 \
+  --attacker-ip 127.0.0.1 \
+  --serve-port 9997 \
+  --blocks 30
+```
+
+Tracker poisoning:
+
+```bash
+python3 attacks/attack_tracker_poison.py \
+  --tracker http://127.0.0.1:5000 \
+  --attacker-url http://127.0.0.1:9999 \
+  --serve-port 9999 \
+  --chain-length 30
+```
+
+Photo tampering test:
+
+```bash
+python3 attacks/attack_tamper_photo.py \
+  --target http://127.0.0.1:8001 \
+  --image path/to/photo.jpg
+```
+
+Mempool flooding:
+
+```bash
+python3 attacks/attack_flood_mempool.py \
+  --target http://127.0.0.1:8001 \
+  --count 5000 \
+  --threads 20
+```
+
+Gossip sender URL spoofing:
+
+```bash
+python3 attacks/attack_gossip_hijack.py \
+  --target http://127.0.0.1:8001 \
+  --attacker-url http://127.0.0.1:9999 \
+  --serve-port 9999 \
+  --chain-length 25
+```
+
+For a detailed security report, see [attacks/README.md](./attacks/README.md).
+
+## Project Layout
+
+```text
+application/   Wallets, signatures, image hashing, capture and verification logic
+blockchain/    Transactions, blocks, Merkle roots, mining, chain validation
+network/       Tracker, peer API, gossip, synchronization
+web/           Flask web UI and peer HTTP routes
+attacks/       Security demonstration scripts
+tests/         Unit and integration tests
+```

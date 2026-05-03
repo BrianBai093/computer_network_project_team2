@@ -9,6 +9,7 @@ Run it from the project root:
 """
 
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -42,7 +43,7 @@ def wait_for_health(url: str, timeout_seconds: int = 15) -> bool:
 def main() -> None:
     processes: list[subprocess.Popen] = []
     try:
-        processes.append(start_process(["python", "run_tracker.py", "--port", "5000"]))
+        processes.append(start_process([sys.executable, "run_tracker.py", "--port", "5000"]))
         if wait_for_health(f"{TRACKER_URL}/health"):
             print("Tracker is healthy")
         else:
@@ -50,7 +51,7 @@ def main() -> None:
 
         for port in PEER_PORTS:
             processes.append(start_process([
-                "python", "run_peer.py",
+                sys.executable, "run_peer.py",
                 "--tracker-url", TRACKER_URL,
                 "--web-port", str(port),
             ]))

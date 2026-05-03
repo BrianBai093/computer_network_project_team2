@@ -89,6 +89,7 @@ class TestCapture:
         assert resp.status_code == 200   # redirects back with flash warning
 
     def test_post_capture_with_image(self, client, node_state, png_image):
+        client.post("/register", data={"model": "TestCam"})
         before = node_state["mempool"].size()
         resp = client.post(
             "/capture",

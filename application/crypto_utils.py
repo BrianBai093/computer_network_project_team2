@@ -35,6 +35,11 @@ def derive_device_id(public_key: str) -> str:
     return hashlib.sha256(public_key.encode("utf-8")).hexdigest()[:32]
 
 
+def pubkey_to_device_id(public_key: str) -> str:
+    """Backward-compatible alias for older tests and callers."""
+    return derive_device_id(public_key)
+
+
 def sign(private_key: str, message: bytes) -> str:
     """Sign bytes with an ECDSA private key.
 
