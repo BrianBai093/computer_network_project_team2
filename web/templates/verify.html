@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Verify Image{% endblock %}
+
+{% block content %}
+<h1><i data-lucide="shield-check"></i>Image Authenticity Verification</h1>
+
+<form method="POST" enctype="multipart/form-data">
+  <div class="form-group">
+    <label><i data-lucide="upload"></i>Upload image to verify</label>
+    <input type="file" name="image" accept="image/*" required class="form-control">
+  </div>
+  <button type="submit" class="btn btn-primary">
+    <i data-lucide="search"></i>Verify
+  </button>
+</form>
+
+{% if detail %}
+
+<!-- Floating badge + image display -->
+<div class="verify-image-wrap">
+  {% if image_file %}
+  <img src="{{ url_for('web.uploaded_file', filename=image_file) }}"
+       class="verify-main-img" alt="Verified image">
+  {% else %}
+  <div class="verify-img-placeholder">
+    <i data-lucide="image-off"></i>
+    <span>No stored image on this node</span>
+  </div>
+  {% endif %}
+
+  <button class="verify-badge badge-{{ detail.result.value.lower() }}" id="verifyBadge"
+          data-message="{{ detail.message | e }}"
+          data-phash-distance="{{ detail.phash_distance if detail.phash_distance is not none else '—' }}"
+          title="Click to toggle details">
+    {% if detail.result.value == "AUTHENTIC" %}
+      <i data-lucide="check-circle"></i> AUTHENTIC
+    {% elif detail.result.value == "SUSPICIOUS" %}
+      <i data-lucide="alert-triangle"></i> SUSPICIOUS
+    {% else %}
+      <i data-lucide="help-circle"></i> UNKNOWN
+    {% endif %}
+    <span class="verify-tooltip">
+      <strong>{{ detail.message }}</strong>{% if detail.phash_distance is not none %}<br>pHash distance: {{ detail.phash_distance }}{% endif %}
+    </span>
+  </button>
+</div>
+
+<!-- Collapsible detail panel -->
+<div class="verify-detail-panel" id="verifyDetailPanel">
+  <table class="info-table">
+    <tr><th>Result</th><td><strong>{{ detail.result.value }}</strong></td></tr>
+    <tr><th>SHA-256</th><td><code>{{ detail.image_hash }}</code></td></tr>
+    <tr><th>pHash</th><td><code>{{ detail.phash }}</code></td></tr>
+    {% if detail.phash_distance is not none %}
+    <tr><th>pHash Distance</th><td>{{ detail.phash_distance }}</td></tr>
+    {% endif %}
+    <tr><th>Reason</th><td>{{ detail.message }}</td></tr>
+    {% if detail.matched_tx_id %}
+    <tr><th>Transaction ID</th><td><code>{{ detail.matched_tx_id[:16] }}...</code></td></tr>
+    {% endif %}
+    {% if detail.result.value == "AUTHENTIC" %}
+    <tr><th>Captured by</th><td><code>{{ sender_display if sender_display else '—' }}</code></td></tr>
+    <tr><th>Device Name</th><td>{{ device_name if device_name else '—' }}</td></tr>
+    <tr><th>Capture Time</th><td>{{ timestamp_display if timestamp_display else '—' }}</td></tr>
+    <tr>
+      <th>Location</th>
+      <td>{% if detail.location %}<span id="locationDisplay">{{ detail.location }}</span>{% else %}Unknown{% endif %}</td>
+    </tr>
+    <tr>
+      <th>Capture Method</th>
+      <td>{% if capture_source == "camera" %}Camera (taken on-device){% elif capture_source == "upload" %}File Upload{% else %}—{% endif %}</td>
+    </tr>
+    <tr><th>Block Index</th><td>{{ block_index if block_index is not none else '—' }}</td></tr>
+    <tr><th>Endorsements</th><td>{{ detail.endorsements | length }}</td></tr>
+    {% endif %}
+  </table>
+
+  {% if detail.result.value == "AUTHENTIC" and detail.matched_tx_id %}
+  <div class="action-links" style="margin-top:1rem">
+    <a class="btn btn-sm endorse-btn" href="{{ url_for('web.endorse', tx_id=detail.matched_tx_id) }}">
+      <i data-lucide="badge-check"></i>Endorse this capture
+    </a>
+  </div>
+  {% endif %}
+</div>
+
+{% endif %}
+
+{% if detail and detail.result.value == "AUTHENTIC" and detail.location %}
+<script>
+(function () {
+  const raw = {{ detail.location | tojson }};
+  const m   = raw.match(/^(-?\d+\.\d+),(-?\d+\.\d+)$/);
+  if (!m) return;
+  const lat = m[1], lng = m[2];
+  fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=en`)
+    .then(r => r.json())
+    .then(data => {
+      const addr    = data.address || {};
+      const city    = addr.city || addr.town || addr.village || addr.county || '';
+      const country = addr.country || '';
+      const label   = city && country ? `${city}, ${country}` : raw;
+      const el = document.getElementById('locationDisplay');
+      if (el) el.textContent = `${label}  (${raw})`;
+    })
+    .catch(() => {});
+})();
+</script>
+{% endif %}
+{% endblock %}

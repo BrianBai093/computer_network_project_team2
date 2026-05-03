@@ -1,0 +1,240 @@
+"""
+chain.py — Chain class
+
+Responsibilities:
+  - Holds an ordered list of Blocks
+  - Automatically creates the genesis block on initialization
+  - Validates individual block legitimacy
+  - Appends blocks / replaces with a longer chain
+  - Thread-safe (threading.Lock)
+"""
+
+import threading
+import time
+
+from config import DIFFICULTY_BITS, GENESIS_HASH, TX_COINBASE, TX_REGISTER, TX_REVOKE
+from application.crypto_utils import verify
+from blockchain.block import Block
+from blockchain.transaction import Transaction
+from blockchain.mining import _meets_difficulty
+
+
+
+
+class Chain:
+
+    def __init__(self, skip_genesis: bool = False):
+        self._lock = threading.RLock()
+        self._chain = []
+        if not skip_genesis:
+            self._create_genesis()
+
+    # ── Read-only properties ──────────────────────────────────────────────────
+
+    @property
+    def height(self) -> int:
+        with self._lock:
+            return len(self._chain)
+
+    @property
+    def last_block(self) -> Block:
+        with self._lock:
+            return self._chain[-1]
+
+    def get_block(self, index: int) -> Block | None:
+        with self._lock:
+            if 0 <= index < len(self._chain):
+                return self._chain[index]
+            return None
+
+    def get_all_blocks(self) -> list[Block]:
+        with self._lock:
+            return list(self._chain)
+
+    def get_all_transactions(self) -> list[Transaction]:
+        """Return a flat list of all transactions on the chain."""
+        txs = []
+        with self._lock:
+            for blk in self._chain:
+                txs.extend(blk.transactions)
+        return txs
+
+    # ── Genesis block ─────────────────────────────────────────────────────────
+
+    def _create_genesis(self):
+        genesis = Block(
+            index         = 0,
+            previous_hash = GENESIS_HASH,
+            transactions  = [],
+            timestamp     = 0.0,
+            nonce         = 0,
+            miner         = "genesis",
+        )
+        self._chain.append(genesis)
+
+    # ── Validation ────────────────────────────────────────────────────────────
+
+    def is_valid_new_block(self, block: Block, difficulty: int = DIFFICULTY_BITS) -> bool:
+        """
+        Validate a single new block:
+          1. index is consecutive
+          2. previous_hash matches
+          3. hash is correct
+          4. hash meets the difficulty target
+          5. merkle_root is correct
+        """
+        with self._lock:
+            last = self.last_block
+
+            if block.index != last.index + 1:
+                return False
+            if block.previous_hash != last.hash:
+                return False
+            if block.hash != block.compute_hash():
+                return False
+            if not _meets_difficulty(block.hash, difficulty):
+                return False
+
+            from blockchain.merkle import merkle_root
+            expected_mr = merkle_root([tx.tx_id for tx in block.transactions])
+            if block.merkle_root != expected_mr:
+                return False
+
+            # 6. Validate coinbase structure (non-genesis blocks)
+            if block.index > 0:
+                if not block.transactions or block.transactions[0].tx_type != TX_COINBASE:
+                    return False
+                for tx in block.transactions[1:]:
+                    if tx.tx_type == TX_COINBASE:
+                        return False
+
+            # 7. Verify transaction signatures
+            for tx in block.transactions:
+                if tx.tx_type == TX_COINBASE:
+                    continue
+                if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
+                    return False
+                    
+            # 8. Validate REVOKE authorization
+            for tx in block.transactions:
+                if tx.tx_type == TX_REVOKE:
+                    target_device_id = tx.payload.get("target_device_id", "")
+                    register_tx = self._find_register_for_device(target_device_id)
+                    if register_tx is None or tx.sender != register_tx.sender:
+                        return False
+
+            # 9. Validate REGISTER uniqueness (a device can only register once)
+            new_register_devices: set[str] = set()
+            for tx in block.transactions:
+                if tx.tx_type == TX_REGISTER:
+                    device_id = tx.payload.get("device_id", "")
+                    # Reject if device already registered on chain
+                    if self._find_register_for_device(device_id) is not None:
+                        return False
+                    # Reject if same block contains two REGISTERs for the same device
+                    if device_id in new_register_devices:
+                        return False
+                    new_register_devices.add(device_id)
+
+            return True
+
+
+    def is_valid_chain(self, chain: list[Block], difficulty: int = DIFFICULTY_BITS) -> bool:
+        """Validate a complete chain (starting from the genesis block)."""
+        if not chain:
+            return False
+
+        # Validate genesis block
+        genesis = chain[0]
+        if genesis.index != 0 or genesis.previous_hash != GENESIS_HASH:
+            return False
+        
+        if genesis.hash != genesis.compute_hash():
+            return False
+
+        # Build register map for REVOKE validation during chain scan
+        register_map: dict[str, Transaction] = {}
+
+        for i in range(1, len(chain)):
+            prev, curr = chain[i - 1], chain[i]
+            if curr.index != prev.index + 1:
+                return False
+            if curr.previous_hash != prev.hash:
+                return False
+            if curr.hash != curr.compute_hash():
+                return False
+            if not _meets_difficulty(curr.hash, difficulty):
+                return False
+
+            # Coinbase structure
+            if not curr.transactions or curr.transactions[0].tx_type != TX_COINBASE:
+                return False
+            for tx in curr.transactions[1:]:
+                if tx.tx_type == TX_COINBASE:
+                    return False
+
+            # Signature verification
+            for tx in curr.transactions:
+                if tx.tx_type == TX_COINBASE:
+                    continue
+                if not tx.signature or not verify(tx.sender, tx.signable_bytes(), tx.signature):
+                    return False
+                    
+            # REVOKE authorization
+            for tx in curr.transactions:
+                if tx.tx_type == TX_REGISTER:
+                    device_id = tx.payload.get("device_id", "")
+                    if device_id:
+                        # Reject duplicate REGISTER
+                        if device_id in register_map:
+                            return False
+                        register_map[device_id] = tx
+                if tx.tx_type == TX_REVOKE:
+                    target_device_id = tx.payload.get("target_device_id", "")
+                    reg_tx = register_map.get(target_device_id)
+                    if reg_tx is None or tx.sender != reg_tx.sender:
+                        return False
+
+        return True
+
+    def _find_register_for_device(self, device_id: str) -> Transaction | None:
+        """Find the REGISTER transaction for a given device_id on chain."""
+        for blk in self._chain:
+            for tx in blk.transactions:
+                if tx.tx_type == TX_REGISTER and tx.payload.get("device_id") == device_id:
+                    return tx
+        return None
+
+    # ── Append / replace ──────────────────────────────────────────────────────
+
+    def append_block(self, block: Block, difficulty: int = DIFFICULTY_BITS) -> bool:
+        """Append a validated block; returns True on success."""
+        with self._lock:
+            if self.is_valid_new_block(block, difficulty):
+                self._chain.append(block)
+                return True
+            return False
+
+    def replace_chain(self, new_chain: list[Block], difficulty: int = DIFFICULTY_BITS) -> bool:
+        """
+        Longest-chain rule: replace with new_chain if it is longer and valid.
+        Returns True on success.
+        """
+        with self._lock:
+            if len(new_chain) > len(self._chain) and self.is_valid_chain(new_chain, difficulty):
+                self._chain = list(new_chain)
+                return True
+            return False
+
+    # ── Serialization ─────────────────────────────────────────────────────────
+
+    def to_list(self) -> list[dict]:
+        with self._lock:
+            return [blk.to_dict() for blk in self._chain]
+        
+    
+    @classmethod
+    def from_list(cls, data: list[dict]) -> "Chain":
+        chain_obj = cls(skip_genesis=True)
+        chain_obj._chain = [Block.from_dict(d) for d in data]
+        return chain_obj

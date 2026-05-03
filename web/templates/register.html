@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% block title %}Register Device{% endblock %}
+
+{% block content %}
+<h1><i data-lucide="smartphone"></i>Device Registration</h1>
+
+<div class="info-box">
+  <p><strong>Device ID:</strong> <code>{{ device_id }}</code></p>
+  <p><strong>Public Key (first 32 chars):</strong> <code>{{ public_key[:32] }}...</code></p>
+</div>
+
+<!-- Auto-detected device info preview -->
+<div class="card" id="registerPreview">
+  <h3><i data-lucide="monitor" style="width:16px;height:16px;vertical-align:middle;margin-right:0.3rem"></i>Detected Device Information</h3>
+  <table class="info-table">
+    <tr>
+      <th>Device Name</th>
+      <td id="previewDeviceName"><em>Detecting...</em></td>
+    </tr>
+    <tr>
+      <th>Serial (UUID)</th>
+      <td><code id="previewSerial"><em>Generating...</em></code></td>
+    </tr>
+    <tr>
+      <th>User Agent</th>
+      <td style="font-size:0.8rem;word-break:break-all" id="previewUA"><em>Reading...</em></td>
+    </tr>
+  </table>
+  <p class="hint" style="margin-top:0.6rem">
+    The serial UUID is stored in <code>localStorage</code> and reused on subsequent visits.
+  </p>
+</div>
+
+<form method="POST" id="registerForm" style="margin-top:1rem">
+  <input type="hidden" name="device_name" id="inputDeviceName">
+  <input type="hidden" name="serial"      id="inputSerial">
+  <input type="hidden" name="user_agent"  id="inputUserAgent">
+  <button type="submit" class="btn btn-primary">
+    <i data-lucide="user-plus"></i>Register This Device
+  </button>
+</form>
+<p class="hint">The registration transaction will enter the mempool and wait to be mined into a block.</p>
+
+<script>
+(function () {
+  function parseDeviceName(ua) {
+    const paren = ua.match(/\(([^)]+)\)/);
+    if (paren) {
+      const parts = paren[1].split(';');
+      for (const part of parts) {
+        const t = part.trim();
+        if (t && !/^(Linux|U;|Mobile|compatible)/.test(t)) {
+          return t.replace(/ Build.*/, '').trim();
+        }
+      }
+    }
+    if (/iPhone/.test(ua))  return 'iPhone';
+    if (/iPad/.test(ua))    return 'iPad';
+    if (/Android/.test(ua)) return 'Android Device';
+    if (/Mac/.test(ua))     return 'macOS Device';
+    if (/Windows/.test(ua)) return 'Windows Device';
+    if (/Linux/.test(ua))   return 'Linux Device';
+    return 'Unknown Device';
+  }
+
+  function getOrCreateSerial() {
+    const KEY = 'trueshot_device_serial';
+    let serial = localStorage.getItem(KEY);
+    if (!serial) {
+      serial = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
+      localStorage.setItem(KEY, serial);
+    }
+    return serial;
+  }
+
+  const ua         = navigator.userAgent;
+  const deviceName = parseDeviceName(ua);
+  const serial     = getOrCreateSerial();
+
+  document.getElementById('inputDeviceName').value = deviceName;
+  document.getElementById('inputSerial').value     = serial;
+  document.getElementById('inputUserAgent').value  = ua;
+
+  document.getElementById('previewDeviceName').textContent = deviceName;
+  document.getElementById('previewSerial').textContent     = serial;
+  document.getElementById('previewUA').textContent         = ua;
+})();
+</script>
+{% endblock %}

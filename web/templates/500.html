@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Server Error{% endblock %}
+
+{% block content %}
+<div class="error-page">
+  <div class="error-icon">
+    <i data-lucide="server-crash"></i>
+  </div>
+  <h1>Server Error</h1>
+  <p>Something went wrong while processing this request.</p>
+  <a href="{{ url_for('web.index') }}" class="btn btn-primary">
+    <i data-lucide="home"></i>Return to Home
+  </a>
+</div>
+{% endblock %}

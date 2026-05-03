@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Block Explorer{% endblock %}
+
+{% block content %}
+<h1><i data-lucide="blocks"></i>Block Explorer</h1>
+
+{% if selected %}
+<div class="block-detail card">
+  <h2 style="margin-top:0">Block #{{ selected.index }}</h2>
+  <table class="info-table">
+    <tr><th>Hash</th>          <td><code>{{ selected.hash }}</code></td></tr>
+    <tr><th>Previous Hash</th> <td><code>{{ selected.previous_hash }}</code></td></tr>
+    <tr><th>Merkle Root</th>   <td><code>{{ selected.merkle_root }}</code></td></tr>
+    <tr><th>Timestamp</th>     <td>{{ selected.timestamp_display }}</td></tr>
+    <tr><th>Miner</th>         <td><code>{{ selected.miner[:32] if selected.miner else 'N/A' }}</code></td></tr>
+    <tr><th>Nonce</th>         <td>{{ selected.nonce }}</td></tr>
+    <tr><th>Transactions</th>  <td>{{ selected.transactions | length }}</td></tr>
+  </table>
+
+  <h3 style="margin-top:1rem">Transaction List</h3>
+  {% for tx in selected.transactions %}
+  <div class="tx-item">
+    <span class="tx-type {{ tx.tx_type.lower() }}">{{ tx.tx_type }}</span>
+    <code>{{ tx.tx_id[:32] }}...</code>
+    {% if tx.tx_type == "CAPTURE" %}
+      <a href="{{ url_for('web.endorse', tx_id=tx.tx_id) }}"
+         class="btn btn-sm endorse-btn">
+        <i data-lucide="thumbs-up" style="width:12px;height:12px"></i>Endorse
+      </a>
+    {% endif %}
+  </div>
+  {% else %}
+  <p style="color:#94A3B8;padding:0.5rem 0">(no transactions)</p>
+  {% endfor %}
+</div>
+{% endif %}
+
+<h2>All Blocks</h2>
+<table class="block-table">
+  <thead>
+    <tr><th>#</th><th>Hash (first 32)</th><th>Txs</th><th>Timestamp</th></tr>
+  </thead>
+  <tbody>
+    {% for blk in blocks %}
+    <tr>
+      <td><a href="{{ url_for('web.block_detail', index=blk.index) }}">{{ blk.index }}</a></td>
+      <td><code>{{ blk.hash[:32] }}...</code></td>
+      <td>{{ blk.transactions | length }}</td>
+      <td>{{ blk.timestamp_display }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if total_pages and total_pages > 1 %}
+<div class="pagination">
+  {% if page > 1 %}
+    <a href="{{ url_for('web.explorer', page=page - 1) }}">
+      <i data-lucide="chevron-left" style="width:14px;height:14px"></i>Previous
+    </a>
+  {% endif %}
+  <span>Page {{ page }} of {{ total_pages }}</span>
+  {% if page < total_pages %}
+    <a href="{{ url_for('web.explorer', page=page + 1) }}">
+      Next<i data-lucide="chevron-right" style="width:14px;height:14px"></i>
+    </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Home{% endblock %}
+
+{% block content %}
+<h1><i data-lucide="layout-dashboard"></i>TrueShot Node Status</h1>
+
+<div class="stats-grid">
+  <div class="stat-card">
+    <i data-lucide="layers"></i>
+    <div class="stat-value">{{ height }}</div>
+    <div class="stat-label">Chain Height</div>
+  </div>
+  <div class="stat-card">
+    <i data-lucide="users"></i>
+    <div class="stat-value">{{ peer_count }}</div>
+    <div class="stat-label">Known Peers</div>
+  </div>
+  <div class="stat-card">
+    <i data-lucide="clock"></i>
+    <div class="stat-value">{{ mempool_size }}</div>
+    <div class="stat-label">Pending Transactions</div>
+  </div>
+</div>
+
+<div class="info-box">
+  <h3>Latest Block Hash</h3>
+  <code>{{ last_hash }}</code>
+</div>
+
+<div class="action-links">
+  <a class="btn" href="{{ url_for('web.register') }}">
+    <i data-lucide="smartphone"></i>Register Device
+  </a>
+  <a class="btn" href="{{ url_for('web.capture') }}">
+    <i data-lucide="camera"></i>Record Capture
+  </a>
+  <a class="btn btn-primary" href="{{ url_for('web.verify') }}">
+    <i data-lucide="shield-check"></i>Verify Image
+  </a>
+  <a class="btn" href="{{ url_for('web.explorer') }}">
+    <i data-lucide="blocks"></i>Browse Blockchain
+  </a>
+</div>
+
+<div class="hero-section">
+  <h2><i data-lucide="zap"></i>How It Works</h2>
+
+  <div class="chain-deco" aria-hidden="true">
+    <div class="chain-block"></div>
+    <div class="chain-link"></div>
+    <div class="chain-block"></div>
+    <div class="chain-link"></div>
+    <div class="chain-block"></div>
+  </div>
+
+  <div class="workflow-grid">
+    <div class="workflow-step">
+      <div class="step-icon"><i data-lucide="smartphone"></i></div>
+      <div class="step-num">Step 1</div>
+      <div class="step-title">Register</div>
+      <div class="step-desc">Register your device on the blockchain to establish a trusted identity.</div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-icon"><i data-lucide="camera"></i></div>
+      <div class="step-num">Step 2</div>
+      <div class="step-title">Capture</div>
+      <div class="step-desc">Record a photo with its cryptographic hash anchored on-chain.</div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-icon"><i data-lucide="shield-check"></i></div>
+      <div class="step-num">Step 3</div>
+      <div class="step-title">Verify</div>
+      <div class="step-desc">Upload any image to verify its authenticity against the blockchain record.</div>
+    </div>
+    <div class="workflow-step">
+      <div class="step-icon"><i data-lucide="badge-check"></i></div>
+      <div class="step-num">Step 4</div>
+      <div class="step-title">Endorse</div>
+      <div class="step-desc">Trusted peers can endorse captures to strengthen authenticity signals.</div>
+    </div>
+  </div>
+</div>
+{% endblock %}
