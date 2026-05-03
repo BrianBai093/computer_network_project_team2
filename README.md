@@ -77,13 +77,13 @@ python3 -m pip install -r requirements.txt pytest
 Start the tracker in one terminal:
 
 ```bash
-python3 run_tracker.py --port 5000
+python3 run_tracker.py --port 50000
 ```
 
 Start one peer in another terminal:
 
 ```bash
-python3 run_peer.py --tracker-url http://127.0.0.1:5000 --web-port 8001
+python3 run_peer.py --tracker-url http://127.0.0.1:50000 --web-port 8001
 ```
 
 Open the web UI:
@@ -95,8 +95,8 @@ http://127.0.0.1:8001
 To run a small local network, start more peers on different ports:
 
 ```bash
-python3 run_peer.py --tracker-url http://127.0.0.1:5000 --web-port 8002
-python3 run_peer.py --tracker-url http://127.0.0.1:5000 --web-port 8003
+python3 run_peer.py --tracker-url http://127.0.0.1:50000 --web-port 8002
+python3 run_peer.py --tracker-url http://127.0.0.1:50000 --web-port 8003
 ```
 
 You can also launch one tracker and three peers with:
@@ -173,7 +173,7 @@ Full chain replacement:
 
 ```bash
 python3 attacks/attack_fake_chain.py \
-  --tracker http://127.0.0.1:5000 \
+  --tracker http://127.0.0.1:50000 \
   --attacker-ip 127.0.0.1 \
   --serve-port 9997 \
   --blocks 30
@@ -183,7 +183,7 @@ Tracker poisoning:
 
 ```bash
 python3 attacks/attack_tracker_poison.py \
-  --tracker http://127.0.0.1:5000 \
+  --tracker http://127.0.0.1:50000 \
   --attacker-url http://127.0.0.1:9999 \
   --serve-port 9999 \
   --chain-length 30

@@ -8,6 +8,8 @@ Run it from the project root:
     python demo.py
 """
 
+import os
+import signal
 import subprocess
 import sys
 import time
@@ -17,14 +19,70 @@ import requests
 
 
 ROOT = Path(__file__).resolve().parent
-TRACKER_URL = "http://127.0.0.1:5000"
+TRACKER_PORT = 50000
+TRACKER_URL = f"http://127.0.0.1:{TRACKER_PORT}"
 PEER_PORTS = [8001, 8002, 8003]
+WALLETS_DIR = ROOT / "wallets"
+DEMO_PORTS = [TRACKER_PORT, *PEER_PORTS]
 
 
 def start_process(command: list[str]) -> subprocess.Popen:
     """Start a subprocess from the project root."""
     print("Starting:", " ".join(command))
     return subprocess.Popen(command, cwd=ROOT)
+
+
+def _listening_pids(port: int) -> set[int]:
+    """Return PIDs currently listening on a TCP port."""
+    try:
+        result = subprocess.run(
+            ["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+    except FileNotFoundError:
+        return set()
+
+    pids: set[int] = set()
+    for line in result.stdout.splitlines():
+        try:
+            pid = int(line.strip())
+        except ValueError:
+            continue
+        if pid != os.getpid():
+            pids.add(pid)
+    return pids
+
+
+def free_demo_ports() -> None:
+    """Stop old demo processes that still occupy the configured demo ports."""
+    pids: set[int] = set()
+    for port in DEMO_PORTS:
+        pids.update(_listening_pids(port))
+
+    if not pids:
+        return
+
+    print("Stopping existing processes on demo ports:", ", ".join(map(str, sorted(pids))))
+    for pid in sorted(pids):
+        try:
+            os.kill(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        if not any(_listening_pids(port) for port in DEMO_PORTS):
+            return
+        time.sleep(0.2)
+
+    for pid in sorted(pids):
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 
 def wait_for_health(url: str, timeout_seconds: int = 15) -> bool:
@@ -42,8 +100,10 @@ def wait_for_health(url: str, timeout_seconds: int = 15) -> bool:
 
 def main() -> None:
     processes: list[subprocess.Popen] = []
+    WALLETS_DIR.mkdir(exist_ok=True)
+    free_demo_ports()
     try:
-        processes.append(start_process([sys.executable, "run_tracker.py", "--port", "5000"]))
+        processes.append(start_process([sys.executable, "run_tracker.py", "--port", str(TRACKER_PORT)]))
         if wait_for_health(f"{TRACKER_URL}/health"):
             print("Tracker is healthy")
         else:
@@ -54,6 +114,7 @@ def main() -> None:
                 sys.executable, "run_peer.py",
                 "--tracker-url", TRACKER_URL,
                 "--web-port", str(port),
+                "--wallet-file", str(WALLETS_DIR / f"peer-{port}.json"),
             ]))
             time.sleep(1)
 
