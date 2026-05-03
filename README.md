@@ -121,6 +121,9 @@ http://192.168.1.23:8001
 
 The Flask servers already listen on `0.0.0.0`, so other devices on the same
 network can open the UI as long as your firewall allows incoming connections.
+File upload works over this local HTTP link. Live camera capture on phones
+usually requires HTTPS, so use a tunnel if you want to take photos directly from
+a mobile browser.
 
 For a public internet link, expose the peer UI port with a tunnel tool. For
 example, if you already have ngrok installed:

@@ -92,6 +92,11 @@
   // --- Camera -----------------------------------------------------------
 
   async function startCamera() {
+    if (!window.isSecureContext || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert('Camera capture requires a secure browser context. Use HTTPS on mobile, or use localhost on the computer. You can still upload an image file below.');
+      return;
+    }
+
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment' }
