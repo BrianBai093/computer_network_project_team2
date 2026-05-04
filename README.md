@@ -228,3 +228,14 @@ web/           Flask web UI and peer HTTP routes
 attacks/       Security demonstration scripts
 tests/         Unit and integration tests
 ```
+
+## Acknowledgements
+
+This project uses Python standard libraries and the third-party packages listed
+in `requirements.txt`, including Flask for the web server, Requests for HTTP
+communication, Pillow and ImageHash for image processing, Cryptography for ECDSA
+signatures, and pytest for testing.
+
+AI assistance was used for documentation writing and part of the Web UI design
+work. The final code, design choices, and project behavior were reviewed and
+adapted by the team.
