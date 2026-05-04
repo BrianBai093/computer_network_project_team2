@@ -23,20 +23,52 @@ The test suite covers four main parts of the project:
 
 - Blockchain layer: transactions, Merkle roots, blocks, chain validation, mining,
   and the mempool.
-- Network layer: Gossip duplicate-message tracking and Tracker peer registration
-  and discovery APIs.
+- Network layer: Gossip duplicate-message tracking, Tracker peer registration
+  and discovery APIs, and Peer Server block-receive fork handling.
 - Application layer: key generation, signatures, image hashing, wallet
   persistence, and basic workflow placeholders.
 - Web layer: page routes, form submissions, image upload, verification pages,
   block explorer views, and Peer API endpoints.
 
-Current full test result:
+## Important Fork Regression Coverage
+Policy verified by this test: when a peer receives a competing block, even if that block contains a transaction already present on the peer's local chain, the block must not be appended. The peer treats it as a fork, keeps its current chain tip, and attempts to fetch the sender's chain for the later longest-valid-chain decision.
+
+This is covered by:
 
 ```text
-69 passed in 0.86s
+tests/test_network.py::TestPeerServer::test_receive_fork_block_with_already_committed_tx_does_not_append
 ```
 
-All 69 test cases pass.
+The test builds this exact scenario:
+
+- the local peer first commits a block containing a signed transaction;
+- the peer then receives a different block at the same height, built from the
+  same parent and containing that same transaction;
+- `/api/block` rejects the block as not appended;
+- the local chain tip remains unchanged;
+- the Peer Server emits `fork_detected`;
+- the Peer Server attempts to fetch the sender's chain for fork resolution.
+
+This is a high-value regression test because it protects the network behavior
+around fork detection, duplicate-on-chain transaction exposure, and the
+append-failure path that triggers chain sync.
+
+Run the test with `-s`:
+
+```bash
+python3 -m pytest tests/test_network.py::TestPeerServer::test_receive_fork_block_with_already_committed_tx_does_not_append -s -v
+```
+
+The output shows the peer's decision flow:
+
+```text
+[setup] local peer committed block #1 hash=0de765b3237760c6 tx=dfa5a90425a15ada
+[incoming] received competing block #1 hash=048cac0e0edfe7e2 containing tx already on local chain tx=dfa5a90425a15ada
+[detect] fork_detected at block #1 from=http://127.0.0.1:8008 our_height=2
+[strategy] fetching sender chain from http://127.0.0.1:8008
+[result] appended=False local_tip=0de765b3237760c6
+[policy] keep local tip; use sender chain only if it is longer and valid
+```
 
 ## Test File Breakdown
 
@@ -104,8 +136,12 @@ This file tests the network layer. It contains 9 test cases:
 - `TestTracker`: tests the Tracker `/health` endpoint, failed registration when
   the peer URL is missing, registering and listing peers, and the availability of
   the initial peer list endpoint.
-- `TestPeerServer`: keeps an entry point for Peer Server API tests. It currently
-  contains one placeholder test.
+- `TestPeerServer`: tests the Peer Server `/api/block` fork path when an
+  incoming block cannot be appended because it is on a competing branch and
+  includes a transaction that is already present on the local chain. The test verifies
+  that the block is not appended, the local tip remains unchanged,
+  `fork_detected` is emitted, and the sender's chain is fetched for possible
+  fork resolution.
 - `TestPeerClient`: keeps an entry point for Peer Client broadcast tests. It
   currently contains one placeholder test.
 
@@ -148,7 +184,7 @@ python3 -m pytest tests -v
 Full test result:
 
 ```text
-69 passed in 0.86s
+69 passed in 0.83s
 ```
 
 All test cases pass.
